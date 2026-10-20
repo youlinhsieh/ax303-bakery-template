@@ -11,18 +11,18 @@
 
 | 段 | 你對 Claude 說 | 應該看到 |
 |---|---|---|
-| 序-a | （自己動手）到 rag.arcrun.dev 裝 **Arcrun RAG**；中途要你登入 Cloudflare，沒有帳號就在那一步新開 | 裝完的畫面給你「網址」和「MCP token」，先存好 |
+| 序-a | （自己動手）到 rag.arcrun.dev 裝 **Arcrun RAG**；中途要你登入 Cloudflare，沒有帳號就在那一步新開 | 你手上有「MCP 網址」和 Portal 的 email、密碼；Arcrun 沒有 token 要找 |
 | 序-b | 開 `course/paste-by-hand/how-to-paste.md`，自己動手（不經過 Claude）：在剛剛已登入的 Cloudflare 把 `paste-and-run.js` 貼進程式編輯器，按 Deploy | 打開網址：「你現在連到的是 Cloudflare 在 ＿＿ 的機房」，有城市、機房代碼、台北時間。用手機再開一次，城市可能不一樣〔截圖〕 |
-| 序-c | （同一個 Cloudflare 畫面）拿 API 金鑰、抄 Account ID；到 claude.ai/code 環境設定填四個環境變數、Network access 選 Full，開新工作階段 | 四個值只在環境設定裡，對話裡看不到 |
-| 序-d | 「請執行 setup」 | Claude 逐項回報：Node、wrangler、jq、Cloudflare 金鑰與連線（寫出你的帳號 email，**不會出現金鑰本身**）、Arcrun RAG（裝在你自己的帳號、MCP 接得上），全部「通過」；Telegram 那列「略過（下午才需要）」〔截圖〕 |
+| 序-c | （同一個 Cloudflare 畫面）拿 API 金鑰、抄 Account ID；到 claude.ai 的 設定 → 連接器 新增自訂連接器（貼 MCP 網址、授權時填 Portal email＋密碼）；再到 claude.ai/code 環境設定：Network access 選 Full、環境變數填 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 兩個，開新工作階段 | 連接器顯示已連線；兩個 Cloudflare 的值只在環境設定裡，對話裡看不到 |
+| 序-d | 「請執行 setup」 | Claude 逐項回報：Node、wrangler、jq、Cloudflare 金鑰與連線（寫出你的帳號 email，**不會出現金鑰本身**）、Arcrun RAG（連接器已授權、真的讀得到知識庫地圖），全部「通過」；Telegram 那列「略過（下午才需要）」〔截圖〕 |
 | 序-e（小案子） | 照 `course/mini-project/prompt-for-claude.md`，把整段貼給 Claude：蓋「雲端聊天介面」 | Claude 先列驗收題問你「這樣對嗎」，回「對」；蓋好、測綠、部署後給你網址。手機打開：看到機房城市，打一句話，幾秒內小模型回你；再問「我剛剛說了什麼」它答得出來〔截圖〕。沒有資料庫、沒有金鑰 |
 
 setup 說有項目沒過時，只處理那一項：
 
 - **連不上 Cloudflare**：環境設定的 Network access 要選 Full。
 - **金鑰沒設**：環境變數補上後，要**開新的工作階段**才讀得到。
-- **Arcrun 沒接上**：`ARCRUN_RAG_URL`、`ARCRUN_RAG_TOKEN` 兩個變數有沒有填；setup 會真的連連看，並確認那個 Arcrun 裝在**你自己的** Cloudflare 帳號。
-- **Telegram 沒接上**（下午「接 Telegram」才會遇到；早上 setup 顯示「略過」是正常的）：`TELEGRAM_BOT_TOKEN` 有沒有填；setup 會問 Telegram 這個 bot 是誰，問得到才算通過。
+- **Arcrun 沒接上**：到 claude.ai 的 設定 → 連接器，看 Arcrun RAG 那列是不是「已連線」；沒有就新增、授權過期就重新授權（填 Portal 的 email＋密碼，不是 Cloudflare 的）。弄完要**開新的工作階段**才讀得到；setup 會真的讀一次知識庫地圖，讀得到才算通過。
+- **Telegram 沒接上**（下午「接 Telegram」才會遇到；setup 對 Telegram 永遠顯示「略過」，token 不進 Claude）：確認 Cloudflare 後台 Worker 的兩個 Secret（`TELEGRAM_BOT_TOKEN`、`TELEGRAM_WEBHOOK_SECRET`）有填、瀏覽器開過 setWebhook 網址並看到 `"ok":true`；最後以對 bot 傳 `/id` 有回數字為準。
 
 ## 第二幕｜D1 10:20–12:00：把阿珠姨的筆記寫進知識庫（步驟 1）
 

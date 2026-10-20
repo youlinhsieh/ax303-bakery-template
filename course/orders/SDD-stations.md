@@ -40,7 +40,7 @@
 
 ## Telegram
 
-一個 bot（在 @BotFather 建，拿到 token），Telegram 把每則訊息 POST 到 Worker 的 `/api/telegram/webhook`（部署後用 `setWebhook` 告訴 Telegram 這個網址，並帶 `secret_token`）。
+一個 bot（在 @BotFather 建，拿到 token），Telegram 把每則訊息 POST 到 Worker 的 `/api/telegram/webhook`（部署後由**學員自己在瀏覽器**開 `setWebhook` 網址告訴 Telegram 這個網址，並帶 `secret_token`；你不會拿到 bot token，也不要去問）。
 
 | 誰 | 怎麼認 | 進哪個工位 |
 |---|---|---|
@@ -49,7 +49,7 @@
 | 店長 | `TELEGRAM_MANAGERS`（使用者編號） | 同店員，另外：工位送出申請時**店長會收到訊息，附「核准／退回」按鈕**；`/待核准` 列出全部 |
 
 - 對 bot 說 `/id`，它回你的 Telegram 編號（設定店員、店長時要用）。
-- 秘密（`TELEGRAM_BOT_TOKEN`、`TELEGRAM_WEBHOOK_SECRET`）用 `wrangler secret put`，不寫進任何檔案。
+- 秘密（`TELEGRAM_BOT_TOKEN`、`TELEGRAM_WEBHOOK_SECRET`）由學員直接填進 Cloudflare 後台（Worker → Settings → Variables and Secrets → Secret），不經過你、不寫進任何檔案。程式裡只讀 `env.TELEGRAM_BOT_TOKEN`、`env.TELEGRAM_WEBHOOK_SECRET`；兩個沒設時 `/api/telegram/webhook` 回 503 並說明缺哪個。部署好之後，把「Worker 網址」和 setWebhook 要開的網址格式（token 與密語留 `<…>` 佔位符）告訴學員。
 - 核准／退回**只有店長的按鈕走得到**，不經過任何工位、不經過小模型；按的人不是店長要拒絕。
 - 客人資料不齊時（「還需要：取貨日期、電話」），下一句只補缺的就要接得起來：把上一句存起來，和這一句合併再處理。
 - 回覆太長要截斷（Telegram 單則上限 4096 字）。

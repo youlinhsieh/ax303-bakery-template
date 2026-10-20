@@ -1,6 +1,6 @@
 ---
 name: setup
-description: 課前與 D1 開場用（Claude Code on the web 版）。檢查雲端環境的 Node、wrangler、jq，驗證 Cloudflare 金鑰、Arcrun RAG（真的裝在學員自己的帳號、MCP 接得上）與 Telegram bot。學員說「幫我設定環境」「/setup」時使用。
+description: 課前與 D1 開場用（Claude Code on the web 版）。檢查雲端環境的 Node、wrangler、jq，驗證 Cloudflare 金鑰、Arcrun RAG（學員在 claude.ai 連接器授權過、這個工作階段讀得到知識庫）。學員說「幫我設定環境」「/setup」時使用。
 ---
 
 # setup：幫學員確認雲端環境準備好（網頁版）
@@ -13,19 +13,27 @@ description: 課前與 D1 開場用（Claude Code on the web 版）。檢查雲�
 1. **Node**：`node -v`，要 v20 以上（雲端預設 22）。
 2. **jq**：`jq --version`（雲端預設已裝）。
 3. **wrangler**：`npx --yes wrangler --version`。
-4. **Cloudflare 金鑰有沒有設**：只檢查「有沒有」，**絕對不要把值印出來**：
+4. **Cloudflare 金鑰有沒有設**：金鑰與 Account ID 是環境變數（課堂預設，10-18 實測過 whoami／d1／deploy／run-tests 全通）。只檢查「有沒有」，**絕對不要把值印出來**：
    `[ -n "$CLOUDFLARE_API_TOKEN" ] && echo 有 || echo 沒有`，`CLOUDFLARE_ACCOUNT_ID` 同理。
-   沒有 → 告訴學員去 claude.ai/code 的環境設定（Environment variables）補上，補完要**開新 session**才讀得到。
+   - 兩個都有 → 通過這一步，繼續第 5、6 步（**以環境變數為準**）。
+   - `CLOUDFLARE_API_TOKEN` 沒有，但學員說金鑰是放在環境的 **Network secrets**（選用、尚未驗證的做法）→ 照下面「選用：Network secrets」檢查，不要直接判失敗。
+   - 其他情況沒有 → 告訴學員去 claude.ai/code 的環境設定（Environment variables）補上，補完要**開新 session**才讀得到。
 5. **雲端連得到 Cloudflare 嗎**：`curl -s -o /dev/null -w "%{http_code}" https://api.cloudflare.com/client/v4/user/tokens/verify`
-   連不上或 403 且訊息提到 blocked / not allowed → 是環境的網路等級太窄。告訴學員：環境設定的 Network access 要改成 **Full**（或 Custom 並加入 `*.cloudflare.com`、`*.workers.dev`、以及你的 Arcrun RAG 網址）。
+   連不上或 403 且訊息提到 blocked / not allowed → 是環境的網路等級太窄。告訴學員：環境設定的 Network access 要改成 **Full**（或 Custom 並加入 `*.cloudflare.com`、`*.workers.dev`）。
 6. **登入驗證**：`npx wrangler whoami`，要看到學員自己的帳號名稱。看到別人的帳號或失敗，只講那一項怎麼辦。
-7. **Arcrun RAG 真的裝好、裝在學員自己的帳號、接得上**：跑 `node .claude/scripts/check-arcrun-rag.mjs`（它自己讀 `ARCRUN_RAG_URL`、`ARCRUN_RAG_TOKEN`、Cloudflare 金鑰，不會印出任何值）。它會逐項印「通過」或「失敗＋原因＋怎麼辦」：網址格式、MCP 連得上且有地圖／目錄／整張卡三個工具、能讀知識庫地圖、這個 Worker 在學員**自己的** Cloudflare 帳號底下。**只轉述它印出來的那一項怎麼辦**，不要自己猜。
-   - 只檢查「變數有沒有設」**不算通過**：安裝登入失敗、token 貼錯、裝到別人的帳號，變數都會是「有設」。
-   - 它印「略過」（網址不是 workers.dev）→ 請學員到 Cloudflare 的 Workers & Pages 看一眼那個 Worker 是不是在自己帳號底下，學員說是才算通過。
-   - 這一步通過後，`/mcp` 應該看到 `arcrun-rag` 是已連線；沒有的話要開新的工作階段。
-8. **Telegram bot（下午才要求通過）**：只檢查 `TELEGRAM_BOT_TOKEN` 有沒有設（不印出）。**沒設，而且學員不是正在做「接 Telegram」那一段 → 印「略過（下午才需要）」，不算失敗，也不影響「環境好了」。** 學員說正在接 Telegram（下午）而沒設 → 才算失敗，請他回前置作業「第一天下午」的 F、G 步。有設就問 Telegram 這個 bot 是誰：
-   `curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" | jq -r 'if .ok then "bot @" + .result.username else .description end'`
-   看到 `bot @…` 才算通過，並把 `@…` 這個名字告訴學員（之後在 Telegram 搜尋它）。回 `Unauthorized` → token 貼錯，重新從 @BotFather 複製；連不上 → Network access 要 Full。
+7. **Arcrun RAG 接得上、讀得到知識庫**：Arcrun RAG 是學員在 claude.ai 的「設定 → 連接器」用 MCP OAuth2（Portal 的 email＋密碼）授權的，**不用任何 token、也不用環境變數**。你在這個工作階段裡找名字結尾是 `kbdb_get_map` 的工具（連接器的工具名通常長得像 `mcp__某個名字__kbdb_get_map`；工具若是延後載入的，先用工具搜尋找 `kbdb_get_map`），然後**真的呼叫它一次**（讀知識庫地圖）。
+   - 回得出地圖（哪怕是空的）→ 通過。
+   - 找不到這個工具 → 這個工作階段沒帶到連接器。告訴學員：到 claude.ai 的 **設定 → 連接器**，看有沒有 Arcrun RAG 那一列、狀態是不是「已連線」；沒有就新增自訂連接器（貼 MCP 網址，結尾是 `/mcp`）並授權；加完或授權完，要**開新的工作階段**才讀得到。
+   - 呼叫回授權錯誤（401／未授權／過期）→ 到同一頁按 Arcrun RAG 那列的**重新授權**，在跳出的頁面填 Portal 的 email＋密碼；再開新的工作階段。
+   - 呼叫逾時或連不上 → 先確認 Arcrun RAG 的網址在瀏覽器打得開（Portal 能登入），再重試一次；仍不行才轉給講師。
+   - 只看「連接器那一列存在」**不算通過**：授權過期或網址貼錯時，那一列還是在。一定要真的呼叫成功。
+8. **Telegram bot（下午才有，不由 setup 檢查）**：bot token 與 webhook 密語由學員直接放進 Cloudflare 後台 Worker 的 Secret，**不進這個工作區**，所以你檢查不到、也不要去問學員 token。這一列固定印「略過（下午由你對 bot 傳 /id 驗）」，不算失敗。學員說下午接了 bot 卻沒反應 → 請他回前置作業 G 步，確認 Worker 的兩個 Secret（名稱 `TELEGRAM_BOT_TOKEN`、`TELEGRAM_WEBHOOK_SECRET`）和瀏覽器開過的 setWebhook 網址；你能做的只有 `npx wrangler secret list`（只列名稱）確認兩個名稱在不在。
+
+## 選用：Network secrets（尚未驗證，不是課堂預設）
+
+只有學員已經把 Cloudflare 金鑰放進環境的 Network secrets（Name `Cloudflare`、Allowed websites `api.cloudflare.com`、`Authorization`／`Bearer`）、環境變數沒有 `CLOUDFLARE_API_TOKEN` 時才走這段：
+- 先 `curl -s https://api.cloudflare.com/client/v4/user/tokens/verify | jq -r '.result.status // .errors[0].message'`（不帶標頭，系統代為帶上），`active` 才算金鑰有效；驗證錯誤 → 那一筆沒加好，**存好的秘密不能改，要刪掉重加**。
+- 再 `npx wrangler whoami`。**這一格沒實測過**：wrangler 沒有 `CLOUDFLARE_API_TOKEN` 時通常會要互動登入。失敗就**不要跑 `wrangler login`**，照實告訴學員「這條路還沒驗證，請改回環境變數 `CLOUDFLARE_API_TOKEN`」，並回報講師那一行原文。
 
 ## 收尾
 
@@ -37,13 +45,13 @@ description: 課前與 D1 開場用（Claude Code on the web 版）。檢查雲�
 | wrangler | 同上 |
 | jq | 同上 |
 | Cloudflare 金鑰與連線 | 帳號名稱或失敗原因 |
-| Arcrun RAG | 通過（裝在你自己的帳號、MCP 接得上）/ 哪一項失敗 |
-| Telegram bot | bot 名稱 / 略過（下午才需要）/ 失敗原因 |
+| Arcrun RAG | 通過（連接器已授權、讀得到知識庫地圖）/ 哪一項失敗 |
+| Telegram bot | 略過（下午由你對 bot 傳 /id 驗） |
 
-全部通過才說「環境好了」（Telegram 那列是「略過」時不擋）。任何一項失敗，只講那一項該怎麼辦，不要一次丟一堆。
+全部通過才說「環境好了」（Telegram 那列固定是「略過」，不擋）。任何一項失敗，只講那一項該怎麼辦，不要一次丟一堆。
 
 ## 不要做
 
-- 不要印出、複述、或寫進任何檔案：`CLOUDFLARE_API_TOKEN`、`ARCRUN_RAG_TOKEN`、`TELEGRAM_BOT_TOKEN` 的值（`getMe` 的網址裡有 token，指令輸出只留 jq 過濾後的那一行）。
+- 不要印出、複述、或寫進任何檔案：`CLOUDFLARE_API_TOKEN` 的值、Telegram bot token。Telegram token 你本來就拿不到；學員若主動把它貼進對話，請他以後別這樣做，並提醒他到 Cloudflare 或 @BotFather 重新產生一把。
 - 不要叫學員自己開終端機或裝東西到自己的電腦。
 - 不要跑 `wrangler login`。

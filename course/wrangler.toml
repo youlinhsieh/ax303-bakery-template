@@ -12,7 +12,7 @@ MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8"
 # Telegram：店員是誰、誰是店長（Telegram 使用者編號，不是秘密）。格式見 orders/SDD-stations.md〈Telegram〉
 TELEGRAM_STAFF = "{}"               # 你要改：例如 {"123456789":"阿德"}（名字要是 data/staff.csv 裡的員工）
 TELEGRAM_MANAGERS = ""              # 你要改：店長的 Telegram 使用者編號，多人用逗號
-# 下面兩個是秘密，不能寫在這個檔案裡，用 wrangler secret put 放進 Cloudflare：
+# 下面兩個是秘密，不能寫在這個檔案裡，也不經過 Claude：學員自己在 Cloudflare 後台填（Worker → Settings → Variables and Secrets → Secret）：
 #   TELEGRAM_BOT_TOKEN（@BotFather 給的）、TELEGRAM_WEBHOOK_SECRET（自己想一串亂碼）
 
 # D1 資料庫（訂單、排班、日誌住這裡）。先叫 Claude Code 「幫我建一個 D1 叫 leo-bakery-db」，再把 id 填進來
