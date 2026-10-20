@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>里歐烘焙坊｜訂單頁</title>
+<title>里歐烘焙坊｜儀表板</title>
 <style>
   :root { --bg:#fffaf3; --ink:#3b2a1e; --line:#eadfce; --accent:#b4531f; --card:#fff; --red:#b42318; --redbg:#fdecea; --ok:#2f7d32; --warn:#fff3d6; }
   * { box-sizing: border-box; }
@@ -11,7 +11,6 @@
   header { display:flex; align-items:baseline; gap:16px; padding:16px 24px; border-bottom:1px solid var(--line); background:var(--card); flex-wrap:wrap; }
   header h1 { margin:0; font-size:20px; }
   header .sub { color:#8a6f58; font-size:13px; }
-  header a { margin-left:auto; color:#fff; background:var(--accent); padding:8px 14px; border-radius:8px; text-decoration:none; font-size:14px; }
   main { padding:16px 24px 48px; display:grid; gap:20px; max-width:1200px; margin:0 auto; }
   section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
   h2 { margin:0 0 10px; font-size:16px; display:flex; gap:10px; align-items:center; }
@@ -25,9 +24,13 @@
   .tag.s-已取消 { background:#eee; color:#888; text-decoration:line-through; }
   .tag.s-待收訂金 { background:var(--warn); }
   .tag.s-已完成 { background:#e8edf5; color:#44546a; }
-  button { font:inherit; font-size:13px; padding:5px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; }
-  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-  button:disabled { opacity:.5; }
+  pre { margin:0; white-space:pre-wrap; font:inherit; font-size:14px; line-height:1.7; }
+  .cols { display:grid; gap:20px; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); }
+  .stat { display:flex; gap:20px; flex-wrap:wrap; }
+  .stat div { background:#faf4ea; border-radius:10px; padding:8px 14px; min-width:110px; }
+  .stat b { display:block; font-size:22px; }
+  .stat span { font-size:12px; color:#8a6f58; }
+  .blocked { color:var(--red); font-weight:600; }
   #error { display:none; background:var(--redbg); color:var(--red); padding:10px 14px; border-radius:8px; }
   .red { background:var(--redbg); color:var(--red); padding:8px 12px; border-radius:8px; font-weight:600; }
   .ok { background:#e8f3e8; color:var(--ok); padding:8px 12px; border-radius:8px; }
@@ -38,22 +41,37 @@
 </head>
 <body>
 <header>
-  <h1>里歐烘焙坊｜訂單頁</h1>
-  <span class="sub">店長的畫面：看訂單、按核准。五個 AI 工位沒有核准的能力。</span>
-  <a href="chat.html" target="_blank">打開聊天框</a>
+  <h1>里歐烘焙坊｜儀表板</h1>
+  <span class="sub">只能看，不能按。所有操作（問、訂、打卡、核准）都在 Telegram；這一頁是 Cloudflare 上的網頁，每 15 秒自己更新。</span>
 </header>
 <main>
   <div id="error"></div>
 
   <section>
-    <h2>等店長核准 <small id="pcount"></small></h2>
-    <div id="pending"></div>
+    <div class="stat" id="stat"></div>
   </section>
 
-  <section>
-    <h2>明天的排產 <small id="sdate"></small></h2>
-    <div id="sched"></div>
-  </section>
+  <div class="cols">
+    <section>
+      <h2>等店長核准 <small id="pcount"></small></h2>
+      <div id="pending"></div>
+    </section>
+    <section>
+      <h2>明天的排產 <small id="sdate"></small></h2>
+      <div id="sched"></div>
+    </section>
+  </div>
+
+  <div class="cols">
+    <section>
+      <h2>老闆日報 <small id="rdate"></small></h2>
+      <pre id="report"></pre>
+    </section>
+    <section>
+      <h2>工作日誌 <small id="lcount"></small></h2>
+      <div id="logs"></div>
+    </section>
+  </div>
 
   <section>
     <h2>訂單 <small id="count"></small></h2>
@@ -96,7 +114,7 @@ function renderApprovals(list) {
   if (!pend.length) { $('pending').innerHTML = '<div class="empty">目前沒有等核准的事。</div>'; return; }
   $('pending').innerHTML = '<table><tbody>' + pend.map((a) =>
     '<tr class="pending"><td class="kind">' + esc(a.kind) + '</td><td>' + esc(a.summary) + '</td><td>申請人：' + esc(a.requested_by) + '</td>'
-    + '<td><button class="primary" data-act="approve" data-id="' + a.id + '">核准</button> <button data-act="reject" data-id="' + a.id + '">退回</button></td></tr>').join('') + '</tbody></table>';
+    + '<td>#' + a.id + '</td></tr>').join('') + '</tbody></table><div class="empty">核准要店長在 Telegram 按。</div>';
 }
 
 function renderSchedule(s) {
@@ -107,13 +125,30 @@ function renderSchedule(s) {
   $('sched').innerHTML = flag + lines + mat;
 }
 
+function renderReport(r) {
+  $('rdate').textContent = r.date;
+  $('report').textContent = r.text;
+  const st = [['新成立訂單', r.orders_new + ' 張'], ['金額', 'NT$ ' + nt(r.amount)], ['等核准', (r.pending || []).length + ' 件'], ['被擋下', (r.blocked || []).length + ' 件']];
+  $('stat').innerHTML = st.map(([k, v]) => '<div><b>' + esc(v) + '</b><span>' + esc(k) + '</span></div>').join('');
+}
+
+const STATION = { service: '門市客服', intake: '接單員', kitchen: '廚房排產', desk: '內勤小幫手', report: '老闆日報', manager: '店長' };
+function renderLogs(logs) {
+  $('lcount').textContent = '共 ' + logs.length + ' 筆，最新 15 筆';
+  const last = logs.slice(-15).reverse();
+  $('logs').innerHTML = last.length ? '<table><tbody>' + last.map((l) =>
+    '<tr><td>' + esc(STATION[l.station] || l.station) + '</td><td class="' + (l.result === 'blocked' ? 'blocked' : '') + '">' + (l.result === 'blocked' ? '擋下' : l.result === 'pending' ? '等核准' : '完成') + '</td><td>' + esc(l.summary) + '</td></tr>').join('') + '</tbody></table>' : '<div class="empty">還沒有日誌。</div>';
+}
+
 async function load() {
   try {
-    const [o, a, s] = await Promise.all([api('/api/orders'), api('/api/approvals').catch(() => ({ approvals: [] })), api('/api/schedule').catch(() => null)]);
+    const [o, a, s, r, l] = await Promise.all([api('/api/orders'), api('/api/approvals').catch(() => ({ approvals: [] })), api('/api/schedule').catch(() => null), api('/api/report/daily').catch(() => null), api('/api/logs').catch(() => ({ logs: [] }))]);
     showError('');
     renderOrders(o.orders || []);
     renderApprovals(a.approvals || []);
     if (s) renderSchedule(s); else $('sched').innerHTML = '<div class="empty">還沒有排產（/api/schedule 還沒做）。</div>';
+    if (r) renderReport(r); else $('report').textContent = '還沒有日報（/api/report/daily 還沒做）。';
+    renderLogs(l.logs || []);
   } catch (e) {
     $('rows').innerHTML = '';
     $('count').textContent = '';
@@ -121,20 +156,8 @@ async function load() {
   }
 }
 
-$('pending').addEventListener('click', async (ev) => {
-  const btn = ev.target.closest('button[data-act]');
-  if (!btn) return;
-  btn.disabled = true;
-  try {
-    await api('/api/approvals/' + encodeURIComponent(btn.dataset.id) + '/' + btn.dataset.act, { method: 'POST' });
-    await load();
-  } catch (e) {
-    showError(e.message);
-    btn.disabled = false;
-  }
-});
-
 load();
+setInterval(load, 15000);
 </script>
 </body>
 </html>

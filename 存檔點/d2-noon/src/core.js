@@ -4,6 +4,7 @@
 //       小模型（Workers AI）只在「規則文字問答」查不到時才被叫來，而且只准依規則文字回答。
 // 不依賴 Cloudflare：只吃 env.DB（D1 介面）與 env.AI（可有可無）。本機 mock-server 用 node:sqlite 假裝 D1 跑同一份。
 import { parseCsv } from './csv.js';
+import { pickTool } from './agent.js';
 
 // ───────────── 規則（阿珠姨的筆記的程式版；改規則兩邊都要改） ─────────────
 const SIZE = { '6吋': { price: 680, pts: 2 }, '8吋': { price: 980, pts: 3 }, '10吋': { price: 1380, pts: 5 } };
@@ -92,6 +93,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS equipment (equipment_id TEXT PRIMARY KEY, name TEXT, kind TEXT, status TEXT, fault_date TEXT, note TEXT DEFAULT \'\')',
   'CREATE TABLE IF NOT EXISTS shifts (date TEXT, staff_id TEXT, status TEXT, PRIMARY KEY (date, staff_id))',
   'CREATE TABLE IF NOT EXISTS clock (date TEXT, staff_id TEXT, clock_in TEXT, clock_out TEXT, PRIMARY KEY (date, staff_id))',
+  'CREATE TABLE IF NOT EXISTS tg_chats (chat_id TEXT PRIMARY KEY, station TEXT, pending TEXT, updated TEXT)',
   'CREATE TABLE IF NOT EXISTS work_log (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, day TEXT, station TEXT, actor TEXT, action TEXT, target TEXT, result TEXT, summary TEXT, data TEXT)',
 ];
 
@@ -135,6 +137,17 @@ export function createApp(data) {
   }
   const ok = async (env, st, actor, action, target, summary, d) => log(env, st, actor, action, target, 'ok', summary, d);
   const blocked = async (env, st, actor, action, target, summary, d) => log(env, st, actor, action, target, 'blocked', summary, d);
+  // 「這個工位沒有這個工具」：記一筆被擋下的日誌，回該說的話
+  const decline = async (env, st, actor, t, d) => { await blocked(env, st, actor, d.action, d.target || '', `${d.why}：「${t.slice(0, 40)}」`); return d.text; };
+  // 小模型挑工具共用的小幫手：先用程式從原話抓得到的（日期、編號、尺寸），抓不到才用小模型填的
+  const pref = (fromText, fromModel) => (fromText ?? fromModel ?? null);
+  // 小模型填的值要「原話裡真的有」才算數——它會把沒說的欄位湊一個合理的值（例如把今天當取貨日）。沒說的欄位要留空，讓工位去追問。
+  const DATE_WORD = /\d\s*[號日月\/]|今天|明天|後天|週|星期|禮拜/;
+  const gdate = (t, m, env) => parseDate(t, today(env)) ?? (m && DATE_WORD.test(t) ? m : null);
+  const gname = (t, m) => parseName(t) ?? (m && t.includes(m) ? m : null);
+  const gphone = (t, m) => parsePhone(t) ?? (m && t.replace(/\D/g, '').includes(m.replace(/\D/g, '')) ? m : null);
+  const gin = (t, parsed, m, cut) => parsed ?? (m && t.includes(cut ? m.slice(0, -1) : m) ? m : null); // 尺寸去掉「吋」比，口味整個比
+  const gint = (t, parsed, m) => parsed ?? (m && t.includes(String(m)) ? m : null);
 
   // ───────────── 產能與排產 ─────────────
   async function capacity(env, date) {
@@ -182,6 +195,11 @@ export function createApp(data) {
   const orderText = (o) => `${o.order_id}（${o.customer || o.customer_id}，${o.item}${o.type === 'box' ? ' ×' + o.qty : o.qty > 1 ? ' ×' + o.qty : ''}）`;
 
   // ═════════════ 工位一：門市客服（對外） ═════════════
+  const SERVICE_DECLINE = {
+    discount: { action: 'refuse_discount', why: '客人要折扣，客服不能答應', text: '折扣我沒辦法答應：只有禮盒團購折扣（20 盒以上 9 折、50 盒以上 85 折）可以直接算，其他折扣要店長核准，我可以幫你記下，由店長決定。' },
+    order_info: { action: 'refuse_lookup', why: '客人要查訂單／個資，客服沒有這個能力', text: '為了保護客人資料，我不能查或透露任何訂單內容與電話。訂單進度請洽門市，由店員確認你的身分後協助。' },
+    privileged_action: { action: 'refuse_action', why: '客服沒有這個能力', text: '這個我不能做：客服只能回答問題、報價、收下需求。刪除、核准、改價都不在我的權限內。' },
+  };
   const FAQ = [
     [/營業|開門|幾點|地址|門市在哪|哪裡買/, () => '中山店、大安店每天 08:00–20:00 營業。定做的蛋糕與禮盒到門市取貨，取貨日以訂單約定為準。'],
     [/團購|團訂|折扣|優惠|折數/, () => '禮盒團購折扣：20 盒以上 9 折、50 盒以上 85 折。客製蛋糕沒有折扣。表外的折扣我不能答應，需要店長核准。'],
@@ -234,19 +252,19 @@ export function createApp(data) {
     return `已收下需求 ${id}：${name}，${spec.item}×${spec.qty}，${md(due)} 取貨，報價 ${nt(q.amount)}（訂金 ${nt(q.deposit)}）。接單員會確認產能與交期，成立訂單後再通知你付訂金。${need}`;
   }
 
+  const isDiscountAsk = (t) => /(算我|給我|幫我|可以|能不能|能否|打個|打|殺價|再|少算|便宜).{0,6}(折|便宜|優惠)|殺價|算便宜/.test(t) && !/有.{0,3}(折扣|優惠)嗎|折扣是|團購折扣/.test(t);
+  const isLookupAsk = (t) => /LEO-\d{4}-\d{3}|(查|看|問).{0,6}(訂單|電話|客人|資料)|別人的|誰訂的/.test(t);
+  const isPrivAsk = (t) => /(刪除|刪掉|直接核准|核准|幫我改價|改價格)/.test(t);
   async function serviceChat(env, t, actor) {
-    // 1. 擋：折扣、查別人的訂單／個資、替店裡做決定
-    if (/(算我|給我|幫我|可以|能不能|能否|打個|打|殺價|再|少算|便宜).{0,6}(折|便宜|優惠)|殺價|算便宜/.test(t) && !/有.{0,3}(折扣|優惠)嗎|折扣是|團購折扣/.test(t)) {
-      await blocked(env, 'service', actor, 'refuse_discount', '', `客人要折扣，客服不能答應：「${t.slice(0, 40)}」`);
-      return '折扣我沒辦法答應：只有禮盒團購折扣（20 盒以上 9 折、50 盒以上 85 折）可以直接算，其他折扣要店長核准，我可以幫你記下，由店長決定。';
+    // 1. 擋：折扣、查別人的訂單／個資、替店裡做決定（程式這一層是第二道網；小模型那一層是 serviceAgent 的 decline）
+    if (isDiscountAsk(t)) {
+      return decline(env, 'service', actor, t, SERVICE_DECLINE.discount);
     }
-    if (/LEO-\d{4}-\d{3}|(查|看|問).{0,6}(訂單|電話|客人|資料)|別人的|誰訂的/.test(t)) {
-      await blocked(env, 'service', actor, 'refuse_lookup', '', `客人要查訂單／個資，客服沒有這個能力：「${t.slice(0, 40)}」`);
-      return '為了保護客人資料，我不能查或透露任何訂單內容與電話。訂單進度請洽門市，由店員確認你的身分後協助。';
+    if (isLookupAsk(t)) {
+      return decline(env, 'service', actor, t, SERVICE_DECLINE.order_info);
     }
-    if (/(刪除|刪掉|直接核准|核准|幫我改價|改價格)/.test(t)) {
-      await blocked(env, 'service', actor, 'refuse_action', '', `客服沒有這個能力：「${t.slice(0, 40)}」`);
-      return '這個我不能做：客服只能回答問題、報價、收下需求。刪除、核准、改價都不在我的權限內。';
+    if (isPrivAsk(t)) {
+      return decline(env, 'service', actor, t, SERVICE_DECLINE.privileged_action);
     }
     // 2. 報價（有尺寸或說到禮盒，且在問價）
     const asksPrice = /多少錢|價格|價錢|報價|幾元|費用|怎麼算|多少/.test(t);
@@ -304,7 +322,62 @@ export function createApp(data) {
     return '這個我查不到，請洽門市，或換個方式問我（品項、過敏原、客製報價、前置天數、退訂規則）。';
   }
 
+  // 小模型怎麼接客服的話：菜單上只有這幾個工具；沒有「查訂單」「給折扣」「刪除／核准」
+  const serviceAgent = {
+    role: '里歐烘焙坊的「門市客服」，對外服務客人',
+    tools: {
+      quote_cake: { desc: '客製蛋糕報價（客人問蛋糕多少錢）', args: { size: ['6吋', '8吋', '10吋'], flavor: ['香草', '巧克力', '芒果', '抹茶紅豆'], shape: ['一般', '進階', '師傅確認級'], qty: 'int' } },
+      quote_box: { desc: '禮盒報價（彌月禮盒、喜餅禮盒）', args: { kind: ['彌月禮盒', '喜餅禮盒'], qty: 'int' } },
+      take_request: { desc: '客人明確要訂，收下訂單需求；客人說了的欄位才填', args: { type: ['cake', 'box'], size: ['6吋', '8吋', '10吋'], flavor: ['香草', '巧克力', '芒果', '抹茶紅豆'], shape: ['一般', '進階', '師傅確認級'], kind: ['彌月禮盒', '喜餅禮盒'], qty: 'int', name: 'name', phone: 'phone', date: 'date' } },
+      lookup_product: { desc: '問門市每天賣的品項：有沒有賣、價格、過敏原、哪些含某成分', args: {} },
+      answer_rule: { desc: '問店的規則', args: { topic: ['hours', 'group_discount', 'refund', 'change', 'deposit', 'rush', 'lead_time', 'options', 'other'] } },
+      decline: { desc: '客人要的是客服沒有的能力：討價還價要折扣(discount)、查別人的訂單或電話(order_info)、要客服刪除/核准/改價(privileged_action)', args: { category: ['discount', 'order_info', 'privileged_action'] } },
+    },
+    examples: [
+      ['八吋抹茶紅豆做翻糖的多少', { tool: 'quote_cake', args: { size: '8吋', flavor: '抹茶紅豆', shape: '進階', qty: null } }],
+      ['你們可頌有堅果嗎', { tool: 'lookup_product', args: {} }],
+      ['我跟老闆很熟，算我便宜點', { tool: 'decline', args: { category: 'discount' } }],
+      ['我朋友昨天訂的那張，幫我看電話是多少', { tool: 'decline', args: { category: 'order_info' } }],
+      ['幾點打烊', { tool: 'answer_rule', args: { topic: 'hours' } }],
+    ],
+    async run(env, tool, a, t, actor) {
+      const RULE = { hours: '營業時間幾點', group_discount: '團購折扣', refund: '退訂規則', change: '改單截止', deposit: '訂金多少', rush: '加急規則', lead_time: '前置天數要多久', options: '客製有什麼選項' };
+      switch (tool) {
+        case 'decline': { // 小模型說「做不到」；是哪一種，原話有明顯字眼就以程式為準（小模型有時會分錯類）
+          const cat = isDiscountAsk(t) ? 'discount' : isLookupAsk(t) ? 'order_info' : isPrivAsk(t) ? 'privileged_action' : a.category;
+          return decline(env, 'service', actor, t, SERVICE_DECLINE[cat] || SERVICE_DECLINE.privileged_action);
+        }
+        case 'quote_cake': {
+          const size = gin(t, parseSize(t), a.size, 1); if (!size) return null;
+          const shape = parseShape(t);
+          return serviceChat(env, `${size}${gin(t, parseFlavor(t), a.flavor, 0) || ''}蛋糕${shape === '一般' ? '' : shape + '造型'} ${gint(t, parseQty(t, '個|顆'), a.qty) || 1}個 多少錢`, actor);
+        }
+        case 'quote_box': {
+          const kind = /喜餅/.test(t) ? '喜餅禮盒' : /彌月/.test(t) ? '彌月禮盒' : a.kind; if (!kind) return null;
+          return serviceChat(env, `${kind} ${gint(t, parseQty(t, '盒|份'), a.qty) || 1}盒 多少錢`, actor);
+        }
+        case 'take_request': {
+          const isBox = /禮盒/.test(t) || a.type === 'box';
+          const name = gname(t, a.name), phone = gphone(t, a.phone), due = gdate(t, a.date, env);
+          const who = `${name ? `我是${name}，` : ''}${phone ? `電話${phone}，` : ''}`;
+          const when = due ? `，${due}取貨` : '';
+          if (isBox) return serviceChat(env, `${who}要訂${/喜餅/.test(t) ? '喜餅禮盒' : a.kind || '彌月禮盒'} ${gint(t, parseQty(t, '盒|份'), a.qty) || ''}盒${when}`, actor);
+          const shape = parseShape(t);
+          const size = gin(t, parseSize(t), a.size, 1);
+          return serviceChat(env, `${who}要訂${size || ''}${gin(t, parseFlavor(t), a.flavor, 0) || ''}蛋糕${shape === '一般' ? '' : shape + '造型'} ${gint(t, parseQty(t, '個|顆|份|盒'), a.qty) || 1}個${when}`, actor);
+        }
+        case 'answer_rule': return RULE[a.topic] ? serviceChat(env, RULE[a.topic], actor) : serviceChat(env, t, actor);
+        default: return serviceChat(env, t, actor); // lookup_product：品項比對的細節（別名、近似品項）程式做得比小模型準，原話交給它
+      }
+    },
+  };
+
   // ═════════════ 工位二：接單員（內部） ═════════════
+  const INTAKE_DECLINE = {
+    delete_order: { action: 'refuse_delete', why: '接單員沒有刪除訂單的能力', text: '我不能刪除訂單：接單員只能查單、轉單、送出加急／取消／折扣申請。不要的單請用取消申請，由店長核准。' },
+    approve: { action: 'refuse_approve', why: '接單員不能核准', text: '核准只有店長能按，我沒有這個能力。我可以送出申請，請店長在 Telegram 按核准。' },
+    change_price: { action: 'refuse_price', why: '接單員不能改價', text: '我不能直接改價格。金額由規則算出；要特別折扣請說「訂單 ○○ 客人想算 ○ 折」，我送店長核准。' },
+  };
   async function leadCheck(env, q, due) {
     const earliest = addDays(today(env), q.lead);
     return due >= earliest ? { ok: true } : { ok: false, earliest };
@@ -351,16 +424,13 @@ export function createApp(data) {
     const rid = (t.match(/R-\d{3,}/i) || [])[0]?.toUpperCase();
     // 擋：接單員沒有刪除、核准、改價的能力
     if (/刪除|刪掉|移除訂單|作廢/.test(t)) {
-      await blocked(env, 'intake', actor, 'refuse_delete', oid, `接單員沒有刪除訂單的能力：「${t.slice(0, 40)}」`);
-      return '我不能刪除訂單：接單員只能查單、轉單、送出加急／取消／折扣申請。不要的單請用取消申請，由店長核准。';
+      return decline(env, 'intake', actor, t, { ...INTAKE_DECLINE.delete_order, target: oid });
     }
     if (/(直接|幫我|自己|我來).{0,4}(核准|批准)|核准.{0,4}(吧|掉|它)|跳過.{0,4}(店長|核准)|不用.{0,4}(店長|核准)/.test(t)) {
-      await blocked(env, 'intake', actor, 'refuse_approve', oid, `接單員不能核准：「${t.slice(0, 40)}」`);
-      return '核准只有店長能按，我沒有這個能力。我可以送出申請，請店長在訂單頁核准。';
+      return decline(env, 'intake', actor, t, { ...INTAKE_DECLINE.approve, target: oid });
     }
     if (/改(價|金額|價格|訂金)|(價格|金額).{0,3}改|直接.{0,4}(降|減).{0,3}(價|錢)/.test(t)) {
-      await blocked(env, 'intake', actor, 'refuse_price', oid, `接單員不能改價：「${t.slice(0, 40)}」`);
-      return '我不能直接改價格。金額由規則算出；要特別折扣請說「訂單 ○○ 客人想算 ○ 折」，我送店長核准。';
+      return decline(env, 'intake', actor, t, { ...INTAKE_DECLINE.change_price, target: oid });
     }
     if (rid && /師傅.{0,4}確認(過|好|了)/.test(t)) {
       if (staffByName(actor)?.role !== '師傅') {
@@ -456,11 +526,57 @@ export function createApp(data) {
     return `${orderText(o)}：交期 ${md(o.due_date)}，金額 ${nt(o.amount)}，訂金 ${nt(o.deposit)}，狀態「${o.status}」${o.rush ? '（已加急）' : ''}${ap.length ? `；等店長核准：${ap.map((a) => a.kind).join('、')}` : ''}。`;
   }
 
+  // 小模型怎麼接接單員的話：沒有 delete／approve／set_price 這幾個工具
+  const intakeAgent = {
+    role: '里歐烘焙坊的「接單員」，店裡的人用它處理訂單',
+    tools: {
+      list_requests: { desc: '列出待轉單的客人需求', args: {} },
+      chef_confirm: { desc: '師傅說某張需求的造型做得出來', args: { request_id: 'rid' } },
+      convert_request: { desc: '把客人需求轉成正式訂單', args: { request_id: 'rid', due_date: 'date' } },
+      lookup_order: { desc: '只是查看一張訂單的內容與狀態（沒有要改、取消、加急或收錢）', args: { order_id: 'oid' } },
+      record_deposit: { desc: '某張訂單收到訂金了', args: { order_id: 'oid' } },
+      request_rush: { desc: '客人要把交期提前（加急），送出申請等店長核准', args: { order_id: 'oid', new_due: 'date' } },
+      request_cancel: { desc: '客人要取消、退訂、不要了，送出申請等店長核准', args: { order_id: 'oid' } },
+      request_discount: { desc: '客人要特別折扣，送出申請等店長核准', args: { order_id: 'oid', discount: 'discount' } },
+      change_flavor: { desc: '改某張蛋糕訂單的口味', args: { order_id: 'oid', flavor: ['香草', '巧克力', '芒果', '抹茶紅豆'] } },
+      decline: { desc: '要做的事這個工位沒有工具：刪除訂單(delete_order)、直接核准/跳過店長(approve)、直接改價格(change_price)', args: { category: ['delete_order', 'approve', 'change_price'] } },
+    },
+    examples: [
+      ['LEO-2610-011 客人想改成後天拿，趕一下', { tool: 'request_rush', args: { order_id: 'LEO-2610-011', new_due: '2026-10-23' } }],
+      ['訂單 LEO-2610-014 客人要取消', { tool: 'request_cancel', args: { order_id: 'LEO-2610-014' } }],
+      ['LEO-2610-014 客人不要了', { tool: 'request_cancel', args: { order_id: 'LEO-2610-014' } }],
+      ['查訂單 LEO-2610-006', { tool: 'lookup_order', args: { order_id: 'LEO-2610-006' } }],
+      ['LEO-2610-006 現在什麼狀態', { tool: 'lookup_order', args: { order_id: 'LEO-2610-006' } }],
+      ['訂單 LEO-2610-012 收到訂金了', { tool: 'record_deposit', args: { order_id: 'LEO-2610-012' } }],
+      ['訂單 LEO-2610-005 客人想算 8 折', { tool: 'request_discount', args: { order_id: 'LEO-2610-005', discount: 8 } }],
+      ['LEO-2610-019 這張不要了，幫我整張清掉', { tool: 'decline', args: { category: 'delete_order' } }],
+      ['R-002 轉單', { tool: 'convert_request', args: { request_id: 'R-002', due_date: null } }],
+    ],
+    async run(env, tool, a, t, actor) {
+      const oidInText = (t.match(/LEO-\d{4}-\d{3}/i) || [])[0]?.toUpperCase();
+      const rid = (t.match(/R-\d{3,}/i) || [])[0]?.toUpperCase();
+      const rest = t.replace(oidInText || '', '').replace(rid || '', '');
+      switch (tool) {
+        case 'decline': return decline(env, 'intake', actor, t, { ...(INTAKE_DECLINE[a.category] || INTAKE_DECLINE.approve), target: oidInText || '' });
+        case 'list_requests': return intakeChat(env, '列出待轉單的需求', actor);
+        case 'chef_confirm': return rid ? intakeChat(env, `師傅確認過 ${rid} 了`, actor) : null;
+        case 'convert_request': return rid ? intakeChat(env, `把 ${rid} 轉成訂單 ${gdate(rest, a.due_date, env) || ''}`, actor) : null;
+        case 'lookup_order': return oidInText ? intakeChat(env, `查 ${oidInText}`, actor) : null;
+        case 'record_deposit': return oidInText ? intakeChat(env, `${oidInText} 收到訂金`, actor) : null;
+        case 'request_rush': return oidInText ? intakeChat(env, `${oidInText} 提前到 ${gdate(rest, a.new_due, env) || ''} 加急`, actor) : null;
+        case 'request_cancel': return oidInText ? intakeChat(env, `${oidInText} 取消`, actor) : null;
+        case 'request_discount': { const f = pref(parseDiscount(rest) ? parseDiscount(rest) * 10 : null, a.discount); return oidInText && f ? intakeChat(env, `${oidInText} 算 ${f} 折`, actor) : null; }
+        case 'change_flavor': { const fl = gin(rest, parseFlavor(rest), a.flavor, 0); return oidInText && fl ? intakeChat(env, `${oidInText} 口味改成${fl}`, actor) : null; }
+        default: return null;
+      }
+    },
+  };
+
   // ═════════════ 工位三：廚房排產（工廠） ═════════════
+  const KITCHEN_DECLINE = { action: 'refuse_change', why: '排產員不能動訂單', text: '我只負責算排產單和備料，不能改、移、取消訂單，也不能核准。訂單的事請找接單員，要核准請店長。' };
   async function kitchenChat(env, t, actor) {
     if (/(改|移|換|調|取消|刪|新增|加).{0,6}訂單|訂單.{0,8}(改|移|取消|刪|換|調)|LEO-\d{4}-\d{3}.{0,10}(改|移|取消|刪)|核准/.test(t)) {
-      await blocked(env, 'kitchen', actor, 'refuse_change', '', `排產員不能動訂單：「${t.slice(0, 40)}」`);
-      return '我只負責算排產單和備料，不能改、移、取消訂單，也不能核准。訂單的事請找接單員，要核准請店長。';
+      return decline(env, 'kitchen', actor, t, KITCHEN_DECLINE);
     }
     const date = parseDate(t, today(env)) || addDays(today(env), 1);
     const s = await schedule(env, date);
@@ -471,6 +587,23 @@ export function createApp(data) {
     const mat = Object.keys(s.materials).length ? '\n備料：' + Object.entries(s.materials).map(([k, v]) => `${k.replace(/(kg|顆|L)$/, '')} ${v}${k.match(/(kg|顆|L)$/)[1]}`).join('、') + '（門市固定品項走另一條線，不佔這裡的點數）' : '';
     return head + flag + body + mat;
   }
+
+  const kitchenAgent = {
+    role: '里歐烘焙坊的「廚房排產」，幫廚房算某一天的產能、排產單和備料',
+    tools: {
+      day_schedule: { desc: '看某一天的產能、排產單、備料（沒說哪天就是明天）', args: { date: 'date' } },
+      decline: { desc: '要改、移、取消訂單或核准——這個工位沒有這些工具', args: { category: ['change_order'] } },
+    },
+    examples: [
+      ['後天要烤多少', { tool: 'day_schedule', args: { date: '2026-10-23' } }],
+      ['LEO-2610-008 延後一天做', { tool: 'decline', args: { category: 'change_order' } }],
+    ],
+    async run(env, tool, a, t, actor) {
+      if (tool === 'decline') return decline(env, 'kitchen', actor, t, KITCHEN_DECLINE);
+      if (tool !== 'day_schedule') return null;
+      return kitchenChat(env, `排${gdate(t, a.date, env) || addDays(today(env), 1)}的產能和排產單`, actor);
+    },
+  };
 
   // ═════════════ 工位四：內勤小幫手（給員工用） ═════════════
   const EQUIP = { A: 'E01', B: 'E02', C: 'E03', 一: 'E01', 二: 'E02', 三: 'E03', 1: 'E01', 2: 'E02', 3: 'E03' };
@@ -545,8 +678,7 @@ export function createApp(data) {
     }
     const oid = (t.match(/LEO-\d{4}-\d{3}/i) || [])[0]?.toUpperCase();
     if (oid && /刪|改|取消|核准|加急/.test(t) && !/進度|做到哪|到哪/.test(t)) {
-      await blocked(env, 'desk', actor, 'refuse_order_change', oid, `內勤不能動訂單：「${t.slice(0, 40)}」`);
-      return '我只能查進度，不能改、取消、加急或核准訂單。訂單的事請找接單員。';
+      return decline(env, 'desk', actor, t, { ...DESK_DECLINE.change_order, target: oid });
     }
     if (oid) {
       const o = await getOrder(env, oid);
@@ -557,12 +689,48 @@ export function createApp(data) {
       return `${oid}（${o.customer}，${o.item}）：狀態「${o.status}」，交期 ${md(o.due_date)}，${o.status === '已取消' ? '已取消' : o.status === '已完成' ? '已完成' : sch}${ap.length ? `；等店長核准：${ap.map((a) => a.kind).join('、')}` : ''}。`;
     }
     if (/刪|核准|批准|改.{0,3}(排班|紀錄|打卡)/.test(t)) {
-      await blocked(env, 'desk', actor, 'refuse', '', `內勤沒有這個能力：「${t.slice(0, 40)}」`);
-      return '這個我不能做：我只能幫員工打卡（本人）、送請假申請、報修設備、查訂單進度和排班。核准要店長按。';
+      return decline(env, 'desk', actor, t, DESK_DECLINE.other);
     }
     await ok(env, 'desk', actor, 'help', '', '說明能做的事');
     return '我是內勤小幫手，可以：打卡（本人）、請假（送店長核准）、設備報修、查訂單進度（給我訂單編號）、查排班。';
   }
+
+  const deskAgent = {
+    role: '里歐烘焙坊的「內勤小幫手」，給店員用：打卡、請假、報修、查進度和排班',
+    tools: {
+      shifts: { desc: '查某天誰上班誰休假', args: { date: 'date' } },
+      clock: { desc: '打上班卡或下班卡。for_whom 填 self（說話的人自己）或 other（替別人打）', args: { direction: ['in', 'out'], for_whom: ['self', 'other'], person: 'name' } },
+      leave: { desc: '送出請假申請（等店長核准）。for_whom 填 self 或 other', args: { date: 'date', for_whom: ['self', 'other'], person: 'name' } },
+      report_fault: { desc: '設備壞了，報修', args: { equipment: ['烤箱A', '烤箱B', '烤箱C', '攪拌機', '冷藏櫃'] } },
+      order_progress: { desc: '查某張訂單做到哪了', args: { order_id: 'oid' } },
+      decline: { desc: '要改/取消/加急/核准訂單，或核准誰的假——這個工位沒有這些工具', args: { category: ['change_order', 'other'] } },
+    },
+    examples: [
+      ['我到了', { tool: 'clock', args: { direction: 'in', for_whom: 'self', person: null } }],
+      ['麻煩幫阿凱打下班卡', { tool: 'clock', args: { direction: 'out', for_whom: 'other', person: '阿凱' } }],
+      ['明天我要休息', { tool: 'leave', args: { date: '2026-10-22', for_whom: 'self', person: null } }],
+      ['攪拌機停了', { tool: 'report_fault', args: { equipment: '攪拌機' } }],
+    ],
+    async run(env, tool, a, t, actor) {
+      const named = staff.filter((s) => s.name !== staffByName(actor)?.name && t.includes(s.name))[0]?.name;
+      const other = a.for_whom === 'other' || !!named; // 原話裡出現別的員工名字，就當作替別人
+      const person = named || (other ? pref(null, a.person) : null);
+      if ((tool === 'clock' || tool === 'leave') && other && !person) return decline(env, 'desk', actor, t, { action: 'clock_for_other', why: '想替別人打卡／請假', text: '不能替別人打卡或請假：只能本人自己來。' });
+      switch (tool) {
+        case 'decline': return decline(env, 'desk', actor, t, DESK_DECLINE[a.category] || DESK_DECLINE.other);
+        case 'shifts': return deskChat(env, `${gdate(t, a.date, env) || today(env)} 誰上班`, actor);
+        case 'clock': return deskChat(env, `${other && person ? '幫' + person : ''}${a.direction === 'out' || (/下班/.test(t) && !/上班/.test(t)) ? '下班' : '上班'}打卡`, actor);
+        case 'leave': return deskChat(env, `${other && person ? '幫' + person : ''}請假 ${gdate(t, a.date, env) || ''}`, actor);
+        case 'report_fault': { const e = a.equipment || (/烤箱\s*([ABC])/i.test(t) ? '烤箱' + t.match(/烤箱\s*([ABC])/i)[1].toUpperCase() : null); return e ? deskChat(env, `${e}壞了`, actor) : null; }
+        case 'order_progress': { const oid = (t.match(/LEO-\d{4}-\d{3}/i) || [])[0]?.toUpperCase(); return oid ? deskChat(env, `查 ${oid} 進度`, actor) : null; }
+        default: return null;
+      }
+    },
+  };
+  const DESK_DECLINE = {
+    change_order: { action: 'refuse_order_change', why: '內勤不能動訂單', text: '我只能查進度，不能改、取消、加急或核准訂單。訂單的事請找接單員。' },
+    other: { action: 'refuse', why: '內勤沒有這個能力', text: '這個我不能做：我只能幫員工打卡（本人）、送請假申請、報修設備、查訂單進度和排班。核准要店長按。' },
+  };
 
   // ═════════════ 店長核准（只有人按得到；五個工位都沒有這個能力） ═════════════
   async function decide(env, id, act) {
@@ -593,7 +761,88 @@ export function createApp(data) {
     return json({ approval: await one(env, 'SELECT * FROM approvals WHERE id=?', id), order: a.kind === '請假' ? undefined : await getOrder(env, a.target) });
   }
 
+  // ═════════════ Telegram：所有操作的入口（客人、員工、店長都在這裡；網頁只有一頁唯讀儀表板） ═════════════
+  // 客人（任何人）→ 門市客服。店員（TELEGRAM_STAFF 裡的人）→ 預設內勤小幫手，用 /客服 /接單 /廚房 /內勤 /日報 換工位。
+  // 店長（TELEGRAM_MANAGERS 裡的人）→ 另外會收到「等核准」的通知，按鈕核准／退回。核准不經過任何工位，也不經過小模型。
+  const TG_STATION = { '/客服': 'service', '/接單': 'intake', '/廚房': 'kitchen', '/內勤': 'desk', '/日報': 'report' };
+  const tgApi = (env, method, body) => fetch(`${env.TELEGRAM_API || 'https://api.telegram.org'}/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).catch(() => null);
+  const tgSend = (env, chat, text, extra = {}) => tgApi(env, 'sendMessage', { chat_id: chat, text: String(text).slice(0, 4000), ...extra });
+  const tgPeople = (env) => {
+    let staffMap = {}; try { staffMap = JSON.parse(env.TELEGRAM_STAFF || '{}'); } catch { /* 設定壞掉就當沒有店員 */ }
+    return { staffMap, managers: String(env.TELEGRAM_MANAGERS || '').split(',').map((x) => x.trim()).filter(Boolean) };
+  };
+  const approvalKeys = (id) => ({ reply_markup: { inline_keyboard: [[{ text: '核准', callback_data: `ap:approve:${id}` }, { text: '退回', callback_data: `ap:reject:${id}` }]] } });
+  const approvalLine = (a) => `等核准 #${a.id}｜${a.kind}｜${a.summary}（申請人：${a.requested_by || '—'}）`;
+  async function tgDecide(env, id, act) {
+    const r = await decide(env, id, act); const j = await r.json();
+    return r.ok ? `${act === 'approve' ? '已核准' : '已退回'} #${id}：${j.approval.summary}` : `沒辦法：${j.error}`;
+  }
+  const TG_HELP = (isStaff, isMgr) => isStaff
+    ? `里歐烘焙坊 AI 工位。直接用說的就好。\n換工位：/客服 /接單 /廚房 /內勤 /日報（預設是內勤）。${isMgr ? '\n店長：/待核准 看等你核准的事，按鈕核准或退回。' : ''}`
+    : '歡迎來到里歐烘焙坊！我是門市客服，可以問品項、過敏原、客製蛋糕與禮盒報價、前置天數、退訂規則，也可以直接告訴我要訂什麼（請附上稱呼、電話、取貨日）。';
+  async function telegram(env, update) {
+    const { staffMap, managers } = tgPeople(env);
+    const cb = update.callback_query;
+    if (cb) {
+      const uid = String(cb.from?.id), chat = cb.message?.chat?.id ?? cb.from?.id;
+      const [, act, id] = String(cb.data || '').split(':');
+      if (!managers.includes(uid)) { await tgApi(env, 'answerCallbackQuery', { callback_query_id: cb.id, text: '只有店長能按核准' }); return; }
+      const text = await tgDecide(env, Number(id), act); await tgApi(env, 'answerCallbackQuery', { callback_query_id: cb.id, text: text.slice(0, 190) }); await tgSend(env, chat, text); return;
+    }
+    const m = update.message; if (!m) return;
+    const uid = String(m.from?.id), chat = m.chat?.id ?? m.from?.id;
+    if (typeof m.text !== 'string') { await tgSend(env, chat, '目前只看得懂文字訊息。'); return; }
+    const text = m.text.trim(); const name = staffMap[uid] || ''; const isStaff = !!name, isMgr = managers.includes(uid);
+    const row = await one(env, 'SELECT * FROM tg_chats WHERE chat_id=?', String(chat));
+    const save = (station, pending) => run(env, 'INSERT INTO tg_chats (chat_id,station,pending,updated) VALUES (?,?,?,?) ON CONFLICT(chat_id) DO UPDATE SET station=excluded.station, pending=excluded.pending, updated=excluded.updated', String(chat), station, pending || '', new Date().toISOString());
+    const cmd = text.split(/\s+/)[0].replace(/@\w+$/, '');
+    if (cmd === '/id') { await tgSend(env, chat, `你的 Telegram 編號是 ${uid}。要當店員或店長，把這串數字交給 Claude 設定。`); return; }
+    if (cmd === '/start' || cmd === '/help' || cmd === '/說明') { await tgSend(env, chat, TG_HELP(isStaff, isMgr)); return; }
+    if (cmd === '/待核准' || cmd === '/approvals' || /^\/(核准|退回)$/.test(cmd)) {
+      if (!isMgr) { await tgSend(env, chat, '只有店長能核准。'); return; }
+      if (cmd === '/待核准' || cmd === '/approvals') {
+        const list = await all(env, "SELECT * FROM approvals WHERE status='待核准' ORDER BY id");
+        if (!list.length) await tgSend(env, chat, '目前沒有等核准的事。');
+        for (const a of list) await tgSend(env, chat, approvalLine(a), approvalKeys(a.id));
+        return;
+      }
+      const id = Number((text.match(/\d+/) || [])[0]); await tgSend(env, chat, id ? await tgDecide(env, id, cmd === '/核准' ? 'approve' : 'reject') : '請說要處理哪一件，例如「/核准 3」。'); return;
+    }
+    if (TG_STATION[cmd]) {
+      if (!isStaff) { await tgSend(env, chat, '這個工位只給店員用。你可以直接問我品項、報價、訂蛋糕。'); return; }
+      const st = TG_STATION[cmd];
+      if (!CHAT[st]) { await tgSend(env, chat, '這個工位還沒上班。'); return; }
+      await save(st, ''); const rest = text.slice(cmd.length).trim();
+      if (!rest) { await tgSend(env, chat, `已切到「${STATIONS[st]}」。直接說要做什麼。`); return; }
+    }
+    const station = isStaff ? (TG_STATION[cmd] || row?.station || 'desk') : 'service';
+    if (!CHAT[station]) { await tgSend(env, chat, '這個工位還沒上班。'); return; }
+    let msg = TG_STATION[cmd] ? text.slice(cmd.length).trim() : text;
+    if (station === 'service' && row?.pending) msg = `${row.pending}，${msg}`; // 上一句還缺資料：客人只補缺的那幾項，接回上一句一起看
+    const before = (await one(env, 'SELECT COALESCE(MAX(id),0) AS n FROM approvals')).n;
+    const out = await converse(env, station, msg, name);
+    await save(station, station === 'service' && /還需要：/.test(out.reply) ? msg : '');
+    await tgSend(env, chat, out.reply);
+    // 有新的申請等核准 → 通知店長（按鈕）
+    for (const a of await all(env, "SELECT * FROM approvals WHERE status='待核准' AND id>? ORDER BY id", before)) for (const mg of managers) await tgSend(env, mg, approvalLine(a), approvalKeys(a.id));
+  }
+
   const CHAT = { service: serviceChat, intake: intakeChat, kitchen: kitchenChat, desk: deskChat };
+  const AGENTS = { service: serviceAgent, intake: intakeAgent, kitchen: kitchenAgent, desk: deskAgent };
+
+  // 一句話進來：有小模型 → 小模型挑工具、程式照規則做；沒有／掛了／挑不出來 → 規則備援（照舊）。via 記是誰接的話。
+  async function converse(env, station, text, actor) {
+    const agent = AGENTS[station];
+    if (!agent || !env.AI || env.NO_MODEL) return { reply: await CHAT[station](env, text, actor), via: 'rules' };
+    let pick = null, why = '';
+    try { pick = await pickTool(env, agent, text, today(env), actor); if (!pick) why = '小模型沒有回出工具'; } catch (e) { why = String(e.message || e).slice(0, 80); }
+    if (pick) {
+      const reply = await agent.run(env, pick.tool, pick.args, text, actor);
+      if (reply != null) return { reply, via: 'model', tool: pick.tool, model: pick.model };
+      why = `工具 ${pick.tool} 缺必要的資訊`;
+    }
+    return { reply: await CHAT[station](env, text, actor), via: 'rules-fallback', why };
+  }
 
   return {
     async fetch(req, env) {
@@ -602,6 +851,12 @@ export function createApp(data) {
       try {
         await ensure(env);
         const body = async () => req.json().catch(() => ({}));
+        if (p === '/api/telegram/webhook' && m === 'POST') {
+          if (!env.TELEGRAM_WEBHOOK_SECRET || !env.TELEGRAM_BOT_TOKEN) return json({ error: 'Telegram 還沒設定（TELEGRAM_BOT_TOKEN、TELEGRAM_WEBHOOK_SECRET）' }, 503);
+          if (req.headers.get('x-telegram-bot-api-secret-token') !== env.TELEGRAM_WEBHOOK_SECRET) return json({ error: '不是 Telegram 送來的' }, 403);
+          await telegram(env, await body());
+          return json({ ok: true });
+        }
         if (p === '/api/reset' && m === 'POST') { await reset(env); return json({ ok: true }); }
         if (p === '/api/orders' && m === 'GET') return json({ orders: await all(env, 'SELECT o.*, c.name AS customer FROM orders o LEFT JOIN customers c ON c.customer_id=o.customer_id ORDER BY o.order_id') });
         let mm = p.match(/^\/api\/orders\/([^/]+)$/);
@@ -620,7 +875,7 @@ export function createApp(data) {
           if (!CHAT[mm[1]]) return json({ error: '這個工位還沒上班' }, 404);
           const b = await body(); const text = String(b.message || '').trim();
           if (!text) return json({ error: '沒有收到訊息' }, 400);
-          return json({ station: mm[1], reply: await CHAT[mm[1]](env, text, b.user ? String(b.user) : '') });
+          return json({ station: mm[1], ...(await converse(env, mm[1], text, b.user ? String(b.user) : '')) });
         }
         return json({ error: '沒有這個網址' }, 404);
       } catch (e) { return json({ error: '後端出錯：' + e.message }, 500); }

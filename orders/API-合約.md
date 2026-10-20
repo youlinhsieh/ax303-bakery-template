@@ -1,6 +1,6 @@
 # 里歐烘焙坊 API 合約（前端、測試表、劇本都已經照這份寫好，後端照這份做）
 
-訂單頁 `orders/index.html` 與聊天框 `orders/chat.html`、`tests/`、`scenario/` 只會打下面這些網址。**合約不能改**；後端做不到就回報，不要去改前端或測試。
+儀表板 `orders/index.html`（唯讀，只能看）、`tests/`、`scenario/`、Telegram 都只會打下面這些網址。**合約不能改**；後端做不到就回報，不要去改前端或測試。
 
 ## 一、資料放哪、怎麼進來
 
@@ -27,11 +27,12 @@
 | 列出全部訂單 | `GET /api/orders` | `{"orders":[…]}`，依 `order_id` 排序。每筆有：`order_id, type(cake\|box), customer(客戶名), item, size, flavor, shape, qty, points, amount, deposit, status, order_date, due_date, rush(0\|1), note, refund` |
 | 查一張訂單 | `GET /api/orders/LEO-2610-006` | `{"order":{…}}`；沒有這張回 404 `{"error":"查無此訂單"}` |
 | 列出申請 | `GET /api/approvals` | `{"approvals":[{id, kind(加急\|取消\|折扣\|請假), target, summary, status(待核准\|已核准\|已退回), requested_by, …}]}` |
-| 核准／退回 | `POST /api/approvals/3/approve`、`POST /api/approvals/3/reject` | `{"approval":{…}}`；不是「待核准」回 409。**只有訂單頁的按鈕會打這兩個網址，五個工位絕對不能呼叫** |
+| 核准／退回 | `POST /api/approvals/3/approve`、`POST /api/approvals/3/reject` | `{"approval":{…}}`；不是「待核准」回 409。**只有店長在 Telegram 按的按鈕（以及測試劇本裡代表店長的那一步）會走到這兩個網址，五個工位絕對不能呼叫** |
 | 某天的排產單 | `GET /api/schedule?date=2026-10-22`（不給 date＝明天） | `{"date","capacity","ovens_ok","ovens_total","chefs_present","used","over","is_over","lines":[{order_id,customer,item,qty,points}],"materials":{…}}` |
 | 工作日誌 | `GET /api/logs`、`GET /api/logs?station=desk` | `{"logs":[{id,ts,day,station,actor,action,target,result(ok\|blocked\|pending),summary,data}]}` |
 | 老闆日報 | `GET /api/report/daily?date=2026-10-21`（不給＝今天） | `{"date","orders_new","amount",…,"text":"日報全文"}`；**只能從日誌與申請表算出來** |
-| 五個工位 | `POST /api/<工位>/chat`，body `{"message":"…","user":"阿德"}`（`user` 可省略） | `{"station","reply":"工位的回答"}` |
+| 五個工位 | `POST /api/<工位>/chat`，body `{"message":"…","user":"阿德"}`（`user` 可省略） | `{"station","reply":"工位的回答"}`；可以多帶 `via`（`model`＝小模型接的話、`rules`／`rules-fallback`＝規則備援）和 `tool`（小模型挑了哪個工具），測試表只看 `reply` |
+| Telegram 入口 | `POST /api/telegram/webhook`（Telegram 呼叫，帶 `X-Telegram-Bot-Api-Secret-Token`） | `{"ok":true}`；密語不對回 403，沒設定回 503 |
 | 重置資料（教學用） | `POST /api/reset` | `{"ok":true}`：訂單、客戶、設備、排班換回 CSV 起始資料；需求、申請、打卡、日誌清空。測試前會自動呼叫；**只在課程沙盒的 Worker 做**，不要放進真的公司系統 |
 
 `<工位>` 是：`service`（門市客服）、`intake`（接單員）、`kitchen`（廚房排產）、`desk`（內勤小幫手）、`report`（老闆日報）。每個工位做什麼、能碰什麼，見 `orders/SDD-stations.md`。

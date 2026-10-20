@@ -36,11 +36,13 @@ async function reset() {
   const r = await call('/api/reset', { method: 'POST' });
   return r.ok;
 }
+const via = {};
 async function ask(station, message, user) {
   const res = await call(`/api/${station}/chat`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message, user }) });
   const raw = await res.text();
   let data = {}; try { data = JSON.parse(raw); } catch { /* 不是 JSON 就當純文字 */ }
   const out = { reply: String(data.reply ?? ''), err: '', server: '' };
+  if (data.via) via[data.via] = (via[data.via] || 0) + 1; // 誰接的話：model＝小模型、rules／rules-fallback＝規則備援
   // 伺服器出錯時，把它說的話（error 欄位或原文）留下來——那通常就是答案
   if (!res.ok) { out.err = `HTTP ${res.status}`; out.server = String(data.error ?? raw).replace(/\s+/g, ' ').slice(0, 300); }
   return out;
@@ -139,6 +141,11 @@ if (steps.length || tests.length) {
     console.log(`| ${STATIONS[st]} | ${mark(mine.filter((r) => !r.trap))} | ${mark(mine.filter((r) => r.trap))} | ${logged} | ${fixed} |`);
   }
   console.log('\n（—＝這一格沒有題目可驗；查得到＝這個工位每個動作都在 /api/logs 留了日誌；修得好＝紅燈修過、重跑後全綠。）');
+}
+
+if (Object.keys(via).length) {
+  const n = (k) => via[k] || 0;
+  console.log(`\n誰接的話：小模型 ${n('model')} 次、規則備援 ${n('rules') + n('rules-fallback')} 次${n('rules-fallback') ? `（其中 ${n('rules-fallback')} 次是小模型沒挑出工具、退回規則）` : ''}。`);
 }
 
 if (red.length) {

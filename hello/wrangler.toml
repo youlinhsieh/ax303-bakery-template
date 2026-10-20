@@ -1,3 +1,0 @@
-name = "hello"                      # 你要改成自己想要的名字（只能小寫英文、數字、-）
-main = "index.js"
-compatibility_date = "2025-01-01"
