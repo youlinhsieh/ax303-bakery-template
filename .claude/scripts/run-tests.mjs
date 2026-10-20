@@ -9,7 +9,9 @@ import { join } from 'node:path';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
-const dir = opt('--dir', process.cwd());
+// 專案在 repo 的 課程/ 底下（根目錄只放 Claude 的 harness）：給的資料夾沒有 tests/、底下有 課程/tests/ 就自動用 課程/
+const given = opt('--dir', process.cwd());
+const dir = !existsSync(join(given, 'tests')) && existsSync(join(given, '課程', 'tests')) ? join(given, '課程') : given;
 const base = (opt('--base', process.env.ASSISTANT_BASE_URL || 'http://localhost:8787')).replace(/\/$/, '');
 const only = opt('--only', '');
 const ALL = ['service', 'intake', 'kitchen', 'desk', 'report'];

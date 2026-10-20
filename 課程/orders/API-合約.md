@@ -1,5 +1,7 @@
 # 里歐烘焙坊 API 合約（前端、測試表、劇本都已經照這份寫好，後端照這份做）
 
+> 本文件裡的路徑（`orders/`、`data/`、`tests/`、`scenario/`、`company-data/`、`wrangler.toml`）都在 repo 的 `課程/` 底下；`課程/` 就是烘焙坊的 Worker 專案根目錄。
+
 儀表板 `orders/index.html`（唯讀，只能看）、`tests/`、`scenario/`、Telegram 都只會打下面這些網址。**合約不能改**；後端做不到就回報，不要去改前端或測試。
 
 ## 一、資料放哪、怎麼進來

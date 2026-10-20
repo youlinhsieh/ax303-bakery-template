@@ -1,20 +1,22 @@
 ---
 name: run-tests
-description: 讀專案 tests/<工位>/ 的驗收單與 scenario/ 的一天的劇本，逐題問五個工位，產出「綠燈／紅燈」對照表與轉正四條成績，錯的寫進 logs/。學員說「跑測試」「驗收」「試跑劇本」，或部署前使用。
+description: 讀 課程/tests/<工位>/ 的驗收單與 課程/scenario/ 的一天的劇本，逐題問五個工位，產出「綠燈／紅燈」對照表與轉正四條成績，錯的寫進 課程/logs/。學員說「跑測試」「驗收」「試跑劇本」，或部署前使用。
 ---
 
 # run-tests：驗收單＋一天的劇本
+
+這門課的東西都在 repo 的 `課程/` 底下（根目錄只放 Claude 的 harness）；下面的 `tests/`、`scenario/`、`logs/`、`orders/`、`.ax303-gate` 都是指 `課程/` 裡的那一份。烘焙坊的 Worker 專案根目錄也是 `課程/`（`wrangler` 指令在 `課程/` 裡跑）。
 
 驗收單與劇本就是老闆的驗收：每一題寫「問什麼 → 應該看到什麼」。你的工作是**照表逐題問、照實對照**，不要幫工位說話。
 
 ## 第一次用：開部署閘
 
-專案根目錄沒有 `.ax303-gate` 檔就建一個，內容寫**已經蓋好的工位**，逗號分隔（例：`service`；五個都蓋好後是 `service,intake,kitchen,desk,report`）。有了它，專案的 hook 會在每次 `wrangler deploy` 前自動跑那些工位的驗收單，紅燈就不部署；五個工位都在時還會跑一天的劇本。每蓋好一個新工位，就把它加進這個檔。告訴學員一句：「已開啟『部署前必須測試通過』。」
+`課程/` 底下沒有 `.ax303-gate` 檔就建一個（`課程/.ax303-gate`），內容寫**已經蓋好的工位**，逗號分隔（例：`service`；五個都蓋好後是 `service,intake,kitchen,desk,report`）。有了它，專案的 hook 會在每次 `wrangler deploy` 前自動跑那些工位的驗收單，紅燈就不部署；五個工位都在時還會跑一天的劇本。每蓋好一個新工位，就把它加進這個檔。告訴學員一句：「已開啟『部署前必須測試通過』。」
 
 ## 怎麼跑
 
-1. 確認後端在跑：本機 `wrangler dev`（預設 http://localhost:8787）。沒起來就在背景起一個。
-2. 跑：`node .claude/scripts/run-tests.mjs --dir .`
+1. 確認後端在跑：在 `課程/` 裡起本機 `wrangler dev`（預設 http://localhost:8787）。沒起來就在背景起一個（`cd 課程 && npx wrangler dev`）。
+2. 跑：`node .claude/scripts/run-tests.mjs --dir 課程`（在 repo 根目錄給 `--dir .` 也行，腳本會自己找到 `課程/`）
    - 要測已部署的版本時加 `--base https://學員的網址`。
    - 只跑驗收單加 `--only tests`；只跑劇本加 `--only scenario`；只驗蓋好的工位加 `--stations service,intake`（`.ax303-gate` 就是這個清單）。
    - 跑之前與每個「會改資料」的題目前後，腳本會自動呼叫 `POST /api/reset`，把店的資料換回起始狀態（避免上一輪改過的資料讓題目變紅）。要略過加 `--no-reset`。後端若還沒做 `/api/reset`，請照 `orders/API-合約.md` 補上。

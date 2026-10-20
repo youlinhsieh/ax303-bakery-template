@@ -2,4 +2,4 @@
 .env
 .wrangler/
 node_modules/
-logs/red-*.md
+課程/logs/red-*.md
