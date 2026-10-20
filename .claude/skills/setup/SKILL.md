@@ -23,7 +23,7 @@ description: 課前與 D1 開場用（Claude Code on the web 版）。檢查雲�
    - 只檢查「變數有沒有設」**不算通過**：安裝登入失敗、token 貼錯、裝到別人的帳號，變數都會是「有設」。
    - 它印「略過」（網址不是 workers.dev）→ 請學員到 Cloudflare 的 Workers & Pages 看一眼那個 Worker 是不是在自己帳號底下，學員說是才算通過。
    - 這一步通過後，`/mcp` 應該看到 `arcrun-rag` 是已連線；沒有的話要開新的工作階段。
-8. **Telegram bot（下午才要求通過）**：只檢查 `TELEGRAM_BOT_TOKEN` 有沒有設（不印出）。**沒設，而且學員不是正在做「接 Telegram」那一段 → 印「略過（下午才需要）」，不算失敗，也不影響「環境好了」。** 學員說正在接 Telegram（下午）而沒設 → 才算失敗，請他回前置作業「第一天下午」的 G、H 步。有設就問 Telegram 這個 bot 是誰：
+8. **Telegram bot（下午才要求通過）**：只檢查 `TELEGRAM_BOT_TOKEN` 有沒有設（不印出）。**沒設，而且學員不是正在做「接 Telegram」那一段 → 印「略過（下午才需要）」，不算失敗，也不影響「環境好了」。** 學員說正在接 Telegram（下午）而沒設 → 才算失敗，請他回前置作業「第一天下午」的 F、G 步。有設就問 Telegram 這個 bot 是誰：
    `curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" | jq -r 'if .ok then "bot @" + .result.username else .description end'`
    看到 `bot @…` 才算通過，並把 `@…` 這個名字告訴學員（之後在 Telegram 搜尋它）。回 `Unauthorized` → token 貼錯，重新從 @BotFather 複製；連不上 → Network access 要 Full。
 

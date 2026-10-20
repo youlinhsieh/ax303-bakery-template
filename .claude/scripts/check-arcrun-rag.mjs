@@ -56,7 +56,7 @@ if (u.host.endsWith('.workers.dev')) {
     const cf = async (p) => (await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfAcct}${p}`, { headers: { authorization: `Bearer ${cfTok}` } })).json().catch(() => ({}));
     const s = await cf('/workers/subdomain');
     if (!s.success) fail('確認裝在你自己的帳號', 'Cloudflare 金鑰查不到帳號資料', '金鑰要有 Workers 的權限');
-    else if (s.result?.subdomain !== sub) fail('確認裝在你自己的帳號', `這個網址屬於別人的 Cloudflare 帳號（${sub}.workers.dev），不是你的（${s.result?.subdomain}.workers.dev）`, '用你自己的帳號重裝 Arcrun RAG，README 的現場步驟 B');
+    else if (s.result?.subdomain !== sub) fail('確認裝在你自己的帳號', `這個網址屬於別人的 Cloudflare 帳號（${sub}.workers.dev），不是你的（${s.result?.subdomain}.workers.dev）`, '用你自己的帳號重裝 Arcrun RAG，README 的現場步驟 A');
     else {
       const l = await cf('/workers/scripts');
       if (l.success && !(l.result || []).some((x) => x.id === script)) fail('確認裝在你自己的帳號', `你的帳號底下沒有叫 ${script} 的 Worker`, '去 Cloudflare 的 Workers & Pages 看 Arcrun RAG 有沒有裝好');

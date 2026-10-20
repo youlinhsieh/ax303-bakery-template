@@ -20,20 +20,21 @@ Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都�
 
 | 現場步驟 | 做什麼 | 做完你應該看到 |
 |---|---|---|
-| A | 開一個 **Cloudflare 帳號**（免費版即可）：dash.cloudflare.com | 登入後看到 Cloudflare 管理頁 |
-| B | 在**你自己的** Cloudflare 帳號安裝 **Arcrun RAG**（照 rag.arcrun.dev 的安裝步驟） | 你有「一個網址」和「一個 MCP token」。登入失敗請舉手，那是已知問題 |
-| C | 在 Cloudflare 建一把 **API 金鑰**：右上角頭像 → My Profile → API Tokens → Create Token → 選 **Edit Cloudflare Workers** 範本，再加上兩列 **Account → D1 → Edit**、**Account → Workers AI → Edit**（小模型工讀生要用）。另外記下 **Account ID**（Workers & Pages 頁面右側） | 你手上有「一串金鑰」和「一串 Account ID」，先存在只有你看得到的地方 |
-| D | 手工貼一個小程式到 Cloudflare（`手工貼/怎麼貼.md`），證明帳號和環境是通的 | 打開網址看到「你現在連到的是 Cloudflare 在 ＿＿ 的機房」 |
-| E | 在 claude.ai/code 選你的 repo，打開**環境（Environment）設定**：<br>**Network access** 選 **Full**；<br>環境變數填四行：<br>`CLOUDFLARE_API_TOKEN=C 的金鑰`<br>`CLOUDFLARE_ACCOUNT_ID=C 的 Account ID`<br>`ARCRUN_RAG_URL=B 的網址加上 /mcp`<br>`ARCRUN_RAG_TOKEN=B 的 token` | 環境存好。四個值只填在這裡，不要貼進對話、不要寫進任何檔案 |
-| F | **開一個新的工作階段**，對 Claude 說：「請執行 setup」 | Claude 逐項檢查，結尾給你一張清單。**全部「通過」才往下**；哪一項沒過，Claude 只會告訴你那一項怎麼辦，照做再說一次「請執行 setup」。Arcrun RAG 那一列會確認它真的裝在你自己的帳號、MCP 接得上。Telegram 那一列早上會顯示「略過（下午才需要）」，這是正常的 |
+| A | 到 **rag.arcrun.dev** 照安裝畫面裝 **Arcrun RAG**。過程中它會要你**登入 Cloudflare**：有帳號就登入，沒有就在那一步**新開一個**（免費版即可）。Arcrun RAG 會裝在這個 Cloudflare 帳號裡 | 裝完的畫面給你「一個網址」和「一個 MCP token」，先存在只有你看得到的地方。登入失敗請舉手，那是已知問題 |
+| B | 打開 **Cloudflare**（就是剛剛裝 Arcrun RAG 時登入的那個，瀏覽器已經登入了）→ 照 `手工貼/怎麼貼.md` 手工貼一個小程式，證明帳號和環境是通的 | 打開網址看到「你現在連到的是 Cloudflare 在 ＿＿ 的機房」 |
+| C | 同一個 Cloudflare 畫面順手拿金鑰：右上角頭像 → **My Profile → API Tokens → Create Token** → 選 **Edit Cloudflare Workers** 範本，再加上兩列 **Account → D1 → Edit**、**Account → Workers AI → Edit**（小模型工讀生要用）。再到 **Workers & Pages** 頁面右側抄下 **Account ID** | 你手上有「一串金鑰」和「一串 Account ID」，和 A 的兩串放在一起 |
+| D | 在 claude.ai/code 選你的 repo，打開**環境（Environment）設定**：<br>**Network access** 選 **Full**；<br>環境變數填四行：<br>`CLOUDFLARE_API_TOKEN=C 的金鑰`<br>`CLOUDFLARE_ACCOUNT_ID=C 的 Account ID`<br>`ARCRUN_RAG_URL=A 的網址加上 /mcp`<br>`ARCRUN_RAG_TOKEN=A 的 token` | 環境存好。四個值只填在這裡，不要貼進對話、不要寫進任何檔案 |
+| E | **開一個新的工作階段**，對 Claude 說：「請執行 setup」 | Claude 逐項檢查，結尾給你一張清單。**全部「通過」才往下**；哪一項沒過，Claude 只會告訴你那一項怎麼辦，照做再說一次「請執行 setup」。Arcrun RAG 那一列會確認它真的裝在你自己的帳號、MCP 接得上。Telegram 那一列早上會顯示「略過（下午才需要）」，這是正常的 |
+
+> 不用先另外去開 Cloudflare 帳號：開帳號是裝 Arcrun RAG 的其中一步。
 
 ## 第一天下午「接 Telegram」現場做
 
 | 現場步驟 | 做什麼 | 做完你應該看到 |
 |---|---|---|
-| G | 在手機或電腦的 **Telegram** 找 **@BotFather**，傳 `/newbot`，照它問的取個名字（帳號要以 `bot` 結尾）。它會回你一串 **bot token** | 你手上有「一串 bot token」（長得像 `123456:ABC-…`）。再對你的新 bot 傳一句 `/start`（之後 Claude 才接得到你） |
-| H | 回環境設定，**加第五行**環境變數 `TELEGRAM_BOT_TOKEN=G 的 token`，再開新的工作階段 | Claude 說「請執行 setup」，Telegram 那一列變成 `bot @你的bot名字` |
-| I | 對你的 bot 傳 `/id`，把回的數字交給 Claude，說「我是店長，也是店員阿德」 | Claude 把編號寫進設定；之後你在 Telegram 上能用 `/接單` 等指令，也收得到「等核准」的按鈕 |
+| F | 在手機或電腦的 **Telegram** 找 **@BotFather**，傳 `/newbot`，照它問的取個名字（帳號要以 `bot` 結尾）。它會回你一串 **bot token** | 你手上有「一串 bot token」（長得像 `123456:ABC-…`）。再對你的新 bot 傳一句 `/start`（之後 Claude 才接得到你） |
+| G | 回環境設定，**加第五行**環境變數 `TELEGRAM_BOT_TOKEN=F 的 token`，再開新的工作階段 | Claude 說「請執行 setup」，Telegram 那一列變成 `bot @你的bot名字` |
+| H | 對你的 bot 傳 `/id`，把回的數字交給 Claude，說「我是店長，也是店員阿德」 | Claude 把編號寫進設定；之後你在 Telegram 上能用 `/接單` 等指令，也收得到「等核准」的按鈕 |
 
 ## 開課當天
 
