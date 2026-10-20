@@ -3,7 +3,7 @@
 你不需要會寫程式。全程只在**瀏覽器**（和手機上的 Telegram）。終端機的事，都是 Claude 代勞。
 Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都有「做完你應該看到什麼」。其餘的（Cloudflare、知識庫、金鑰、Telegram）第一天上午在現場一起做。
 
-> **這門課的東西都在 `課程/` 資料夾**：給你看的講義、手工貼、小案子，還有店的資料、規格、驗收單、存檔點（見 `課程/README.md`）。根目錄其他的（`CLAUDE.md`、`.claude/`、`.mcp.json`）是 Claude 的到職須知與工具，你不用打開。
+> **這門課的東西都在 `course/` 資料夾**：給你看的講義、手工貼、小案子，還有店的資料、規格、驗收單、存檔點（見 `course/README.md`）。根目錄其他的（`CLAUDE.md`、`.claude/`、`.mcp.json`）是 Claude 的到職須知與工具，你不用打開。
 
 > 這個 repo 是公開的範本，裡面沒有任何金鑰，也不要把你公司的真實資料放進來——課程全程用一家虛構的烘焙坊「里歐烘焙坊」與假資料。
 
@@ -13,7 +13,7 @@ Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都�
 |---|---|---|
 | 1 | 訂閱 **Claude 付費方案**（Pro 以上），登入 claude.ai。若是公司帳號，先問管理員有沒有開放「網頁版 Claude Code」 | 瀏覽器打開 **claude.ai/code** 能進去，不是「無權限」畫面 |
 | 2 | 開一個 **GitHub 帳號**（免費）：github.com | 登入後看到 GitHub 首頁 |
-| 3 | 打開講師報名信附的範本網址，按綠色 **Use this template → Create a new repository**；名稱隨意，選 **Public** | 你的 GitHub 帳號底下多了一個自己的 repo，根目錄有 `README.md`、`CLAUDE.md` 和一個 `課程/` 資料夾 |
+| 3 | 打開講師報名信附的範本網址，按綠色 **Use this template → Create a new repository**；名稱隨意，選 **Public** | 你的 GitHub 帳號底下多了一個自己的 repo，根目錄有 `README.md`、`CLAUDE.md` 和一個 `course/` 資料夾 |
 | 4 | 到 claude.ai/code，依畫面連結你的 GitHub 帳號 | 在 claude.ai/code 的 repo 清單看得到你剛建的 repo |
 
 > 這四步做完就可以上課。沒有 Cloudflare 帳號、沒有金鑰、沒有 Telegram bot 都沒關係，現場帶著做。
@@ -23,7 +23,7 @@ Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都�
 | 現場步驟 | 做什麼 | 做完你應該看到 |
 |---|---|---|
 | A | 到 **rag.arcrun.dev** 照安裝畫面裝 **Arcrun RAG**。過程中它會要你**登入 Cloudflare**：有帳號就登入，沒有就在那一步**新開一個**（免費版即可）。Arcrun RAG 會裝在這個 Cloudflare 帳號裡 | 裝完的畫面給你「一個網址」和「一個 MCP token」，先存在只有你看得到的地方。登入失敗請舉手，那是已知問題 |
-| B | 打開 **Cloudflare**（就是剛剛裝 Arcrun RAG 時登入的那個，瀏覽器已經登入了）→ 照 `課程/手工貼/怎麼貼.md` 手工貼一個小程式，證明帳號和環境是通的 | 打開網址看到「你現在連到的是 Cloudflare 在 ＿＿ 的機房」 |
+| B | 打開 **Cloudflare**（就是剛剛裝 Arcrun RAG 時登入的那個，瀏覽器已經登入了）→ 照 `course/paste-by-hand/how-to-paste.md` 手工貼一個小程式，證明帳號和環境是通的 | 打開網址看到「你現在連到的是 Cloudflare 在 ＿＿ 的機房」 |
 | C | 同一個 Cloudflare 畫面順手拿金鑰：右上角頭像 → **My Profile → API Tokens → Create Token** → 選 **Edit Cloudflare Workers** 範本，再加上兩列 **Account → D1 → Edit**、**Account → Workers AI → Edit**（小模型工讀生要用）。再到 **Workers & Pages** 頁面右側抄下 **Account ID** | 你手上有「一串金鑰」和「一串 Account ID」，和 A 的兩串放在一起 |
 | D | 在 claude.ai/code 選你的 repo，打開**環境（Environment）設定**：<br>**Network access** 選 **Full**；<br>環境變數填四行：<br>`CLOUDFLARE_API_TOKEN=C 的金鑰`<br>`CLOUDFLARE_ACCOUNT_ID=C 的 Account ID`<br>`ARCRUN_RAG_URL=A 的網址加上 /mcp`<br>`ARCRUN_RAG_TOKEN=A 的 token` | 環境存好。四個值只填在這裡，不要貼進對話、不要寫進任何檔案 |
 | E | **開一個新的工作階段**，對 Claude 說：「請執行 setup」 | Claude 逐項檢查，結尾給你一張清單。**全部「通過」才往下**；哪一項沒過，Claude 只會告訴你那一項怎麼辦，照做再說一次「請執行 setup」。Arcrun RAG 那一列會確認它真的裝在你自己的帳號、MCP 接得上。Telegram 那一列早上會顯示「略過（下午才需要）」，這是正常的 |
@@ -40,32 +40,32 @@ Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都�
 
 ## 課程資料夾地圖（從簡報點進來會到這些地方）
 
-課程的東西全在 [`課程/`](課程/)，每個資料夾裡都有一份 README，寫著「這裡的東西幹嘛用、在簡報第幾頁用到、下一步去哪」。
+課程的東西全在 [`course/`](course/)，每個資料夾裡都有一份 README，寫著「這裡的東西幹嘛用、在簡報第幾頁用到、下一步去哪」。
 
 | 資料夾 | 簡報 |
 |---|---|
-| [`課程/講義/`](課程/講義/) | 整堂課 |
-| [`課程/手工貼/`](課程/手工貼/) | D1 第 9–12 頁 |
-| [`課程/小案子/`](課程/小案子/) | D1 第 13–16 頁 |
-| [`課程/company-data/`](課程/company-data/) | D1 第 30–32 頁 |
-| [`課程/tests/`](課程/tests/) | D1 第 34、38 頁；D2 各工位 |
-| [`課程/orders/`](課程/orders/) | D1 第 35–37 頁；D2 第 7 頁 |
-| [`課程/scenario/`](課程/scenario/) | D1 第 28、40 頁；D2 第 15–16 頁 |
-| [`課程/存檔點/`](課程/存檔點/) | D2 第 3、9 頁 |
-| [`課程/data/`](課程/data/) | D2 第 4 頁 |
-| [`課程/logs/`](課程/logs/) | D2 第 13–14 頁 |
+| [`course/handouts/`](course/handouts/) | 整堂課 |
+| [`course/paste-by-hand/`](course/paste-by-hand/) | D1 第 9–12 頁 |
+| [`course/mini-project/`](course/mini-project/) | D1 第 13–16 頁 |
+| [`course/company-data/`](course/company-data/) | D1 第 30–32 頁 |
+| [`course/tests/`](course/tests/) | D1 第 34、38 頁；D2 各工位 |
+| [`course/orders/`](course/orders/) | D1 第 35–37 頁；D2 第 7 頁 |
+| [`course/scenario/`](course/scenario/) | D1 第 28、40 頁；D2 第 15–16 頁 |
+| [`course/savepoints/`](course/savepoints/) | D2 第 3、9 頁 |
+| [`course/data/`](course/data/) | D2 第 4 頁 |
+| [`course/logs/`](course/logs/) | D2 第 13–14 頁 |
 
 根目錄其他的（`CLAUDE.md`、`.claude/`、`.mcp.json`）是 Claude 的到職須知與工具，不用動。
 
 ## 開課當天
 
 - 帶一台有鍵盤的筆電（只需要瀏覽器），手機裝好 Telegram。
-- 課程講義在你 repo 的 `課程/講義/` 資料夾；上課時講師會說現在看哪一段。
+- 課程講義在你 repo 的 `course/handouts/` 資料夾；上課時講師會說現在看哪一段。
 - 每個實作段做完，對 Claude 說「存檔」，你的進度才會留在自己的 repo 裡。
 
 ## 跟不上進度時（存檔點）
 
-兩天的內容很多，落後是正常的。你的 repo 裡有兩個**存檔點**（`課程/存檔點/` 資料夾）：
+兩天的內容很多，落後是正常的。你的 repo 裡有兩個**存檔點**（`course/savepoints/` 資料夾）：
 
 | 你對 Claude 說 | 接回的進度 |
 |---|---|

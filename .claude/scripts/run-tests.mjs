@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 驗收單 + 一天的劇本，跑完印出「五個工位 × 轉正四條」成績表，錯的寫進 <dir>/logs/。
-// 驗收單：<dir>/tests/<工位>/T*.md（一般題）、X*.md（陷阱題）；劇本：<dir>/scenario/一天的劇本.md（照順序跑，狀態會累積）。
+// 驗收單：<dir>/tests/<工位>/T*.md（一般題）、X*.md（陷阱題）；劇本：<dir>/scenario/one-day-script.md（照順序跑，狀態會累積）。
 // 用法：node run-tests.mjs [--dir 專案資料夾] [--base http://localhost:8787] [--only tests|scenario] [--stations service,intake] [--no-reset]
 // --stations：只驗已經蓋好的工位（部署閘用）；沒有列滿五個工位時不跑一天的劇本（劇本要五個工位都在才跑得完）。
 // 全綠 exit 0；有紅燈 exit 1；連不上服務 exit 3。只用 Node 內建功能，不需 npm install。
@@ -9,9 +9,9 @@ import { join } from 'node:path';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
-// 專案在 repo 的 課程/ 底下（根目錄只放 Claude 的 harness）：給的資料夾沒有 tests/、底下有 課程/tests/ 就自動用 課程/
+// 專案在 repo 的 course/ 底下（根目錄只放 Claude 的 harness）：給的資料夾沒有 tests/、底下有 course/tests/ 就自動用 course/
 const given = opt('--dir', process.cwd());
-const dir = !existsSync(join(given, 'tests')) && existsSync(join(given, '課程', 'tests')) ? join(given, '課程') : given;
+const dir = !existsSync(join(given, 'tests')) && existsSync(join(given, 'course', 'tests')) ? join(given, 'course') : given;
 const base = (opt('--base', process.env.ASSISTANT_BASE_URL || 'http://localhost:8787')).replace(/\/$/, '');
 const only = opt('--only', '');
 const ALL = ['service', 'intake', 'kitchen', 'desk', 'report'];
@@ -90,7 +90,7 @@ if (only !== 'scenario') {
 
 // ───────────── 二、一天的劇本 ─────────────
 const steps = [];
-const scenarioPath = join(dir, 'scenario', '一天的劇本.md');
+const scenarioPath = join(dir, 'scenario', 'one-day-script.md');
 if (only !== 'tests' && !fullTeam) console.log(`\n（目前只驗 ${active.map((x) => STATIONS[x]).join('、')}；五個工位都蓋好才會跑一天的劇本。）`);
 if (only !== 'tests' && fullTeam && existsSync(scenarioPath)) {
   const parts = readFileSync(scenarioPath, 'utf8').split(/^(?=##\s*步驟)/m).filter((p) => /^##\s*步驟/.test(p));
