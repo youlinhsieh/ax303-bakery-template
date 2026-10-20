@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>里歐烘焙坊｜訂單頁</title>
+<style>
+  :root { --bg:#fffaf3; --ink:#3b2a1e; --line:#eadfce; --accent:#b4531f; --card:#fff; --red:#b42318; --redbg:#fdecea; --ok:#2f7d32; --warn:#fff3d6; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; color:var(--ink); background:var(--bg); }
+  header { display:flex; align-items:baseline; gap:16px; padding:16px 24px; border-bottom:1px solid var(--line); background:var(--card); flex-wrap:wrap; }
+  header h1 { margin:0; font-size:20px; }
+  header .sub { color:#8a6f58; font-size:13px; }
+  header a { margin-left:auto; color:#fff; background:var(--accent); padding:8px 14px; border-radius:8px; text-decoration:none; font-size:14px; }
+  main { padding:16px 24px 48px; display:grid; gap:20px; max-width:1200px; margin:0 auto; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  h2 { margin:0 0 10px; font-size:16px; display:flex; gap:10px; align-items:center; }
+  h2 small { font-weight:normal; color:#8a6f58; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { color:#8a6f58; font-weight:600; font-size:13px; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .tag { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; background:#f3ece0; }
+  .tag.s-排產中 { background:#e3f1e4; color:var(--ok); }
+  .tag.s-已取消 { background:#eee; color:#888; text-decoration:line-through; }
+  .tag.s-待收訂金 { background:var(--warn); }
+  .tag.s-已完成 { background:#e8edf5; color:#44546a; }
+  button { font:inherit; font-size:13px; padding:5px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button:disabled { opacity:.5; }
+  #error { display:none; background:var(--redbg); color:var(--red); padding:10px 14px; border-radius:8px; }
+  .red { background:var(--redbg); color:var(--red); padding:8px 12px; border-radius:8px; font-weight:600; }
+  .ok { background:#e8f3e8; color:var(--ok); padding:8px 12px; border-radius:8px; }
+  .empty { color:#8a6f58; padding:6px 0; }
+  .kind { font-weight:600; }
+  tr.pending { background:var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <h1>里歐烘焙坊｜訂單頁</h1>
+  <span class="sub">店長的畫面：看訂單、按核准。五個 AI 工位沒有核准的能力。</span>
+  <a href="chat.html" target="_blank">打開聊天框</a>
+</header>
+<main>
+  <div id="error"></div>
+
+  <section>
+    <h2>等店長核准 <small id="pcount"></small></h2>
+    <div id="pending"></div>
+  </section>
+
+  <section>
+    <h2>明天的排產 <small id="sdate"></small></h2>
+    <div id="sched"></div>
+  </section>
+
+  <section>
+    <h2>訂單 <small id="count"></small></h2>
+    <table>
+      <thead><tr><th>編號</th><th>狀態</th><th>客戶</th><th>品項</th><th>交期</th><th class="num">金額</th><th class="num">訂金</th><th>備註</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+function showError(msg) { $('error').textContent = msg; $('error').style.display = msg ? 'block' : 'none'; }
+async function api(path, options) {
+  const res = await fetch(path, options);
+  let data = {};
+  try { data = await res.json(); } catch (e) { /* 不是 JSON */ }
+  if (!res.ok) throw new Error(data.error || ('伺服器回了 ' + res.status));
+  return data;
+}
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const md = (d) => d ? Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10)) : '';
+const nt = (n) => Number(n).toLocaleString('en-US');
+
+function renderOrders(orders) {
+  $('count').textContent = '共 ' + orders.length + ' 張';
+  $('rows').innerHTML = orders.map((o) =>
+    '<tr><td>' + esc(o.order_id) + '</td>'
+    + '<td><span class="tag s-' + esc(o.status) + '">' + esc(o.status) + '</span>' + (o.rush ? ' <span class="tag">加急</span>' : '') + '</td>'
+    + '<td>' + esc(o.customer) + '</td>'
+    + '<td>' + esc(o.item) + (o.qty > 1 ? ' ×' + o.qty : '') + '</td>'
+    + '<td>' + md(o.due_date) + '</td>'
+    + '<td class="num">' + nt(o.amount) + '</td>'
+    + '<td class="num">' + nt(o.deposit) + '</td>'
+    + '<td>' + esc(o.note) + '</td></tr>').join('');
+}
+
+function renderApprovals(list) {
+  const pend = list.filter((a) => a.status === '待核准');
+  $('pcount').textContent = pend.length ? '（' + pend.length + ' 件）' : '';
+  if (!pend.length) { $('pending').innerHTML = '<div class="empty">目前沒有等核准的事。</div>'; return; }
+  $('pending').innerHTML = '<table><tbody>' + pend.map((a) =>
+    '<tr class="pending"><td class="kind">' + esc(a.kind) + '</td><td>' + esc(a.summary) + '</td><td>申請人：' + esc(a.requested_by) + '</td>'
+    + '<td><button class="primary" data-act="approve" data-id="' + a.id + '">核准</button> <button data-act="reject" data-id="' + a.id + '">退回</button></td></tr>').join('') + '</tbody></table>';
+}
+
+function renderSchedule(s) {
+  $('sdate').textContent = md(s.date) + '｜產能 ' + s.capacity + ' 點（烤箱 ' + s.ovens_ok + '/' + s.ovens_total + '、師傅 ' + s.chefs_present + ' 位）｜已排 ' + s.used + ' 點';
+  const flag = s.is_over ? '<div class="red">超出產能 ' + s.over + ' 點：要決定哪幾張改期</div>' : '<div class="ok">沒有超出產能，還剩 ' + (s.capacity - s.used) + ' 點</div>';
+  const lines = s.lines.length ? '<table><tbody>' + s.lines.map((l) => '<tr><td>' + esc(l.order_id) + '</td><td>' + esc(l.customer) + '</td><td>' + esc(l.item) + (l.qty > 1 ? ' ×' + l.qty : '') + '</td><td class="num">' + l.points + ' 點</td></tr>').join('') + '</tbody></table>' : '<div class="empty">這天沒有排定的訂單。</div>';
+  const mat = Object.keys(s.materials).length ? '<div class="empty">備料：' + Object.entries(s.materials).map(([k, v]) => esc(k) + ' ' + v).join('、') + '</div>' : '';
+  $('sched').innerHTML = flag + lines + mat;
+}
+
+async function load() {
+  try {
+    const [o, a, s] = await Promise.all([api('/api/orders'), api('/api/approvals').catch(() => ({ approvals: [] })), api('/api/schedule').catch(() => null)]);
+    showError('');
+    renderOrders(o.orders || []);
+    renderApprovals(a.approvals || []);
+    if (s) renderSchedule(s); else $('sched').innerHTML = '<div class="empty">還沒有排產（/api/schedule 還沒做）。</div>';
+  } catch (e) {
+    $('rows').innerHTML = '';
+    $('count').textContent = '';
+    showError('讀不到訂單：' + e.message + '（/api/orders 還沒有後端，或後端出錯）');
+  }
+}
+
+$('pending').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('button[data-act]');
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    await api('/api/approvals/' + encodeURIComponent(btn.dataset.id) + '/' + btn.dataset.act, { method: 'POST' });
+    await load();
+  } catch (e) {
+    showError(e.message);
+    btn.disabled = false;
+  }
+});
+
+load();
+</script>
+</body>
+</html>

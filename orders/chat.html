@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>里歐烘焙坊｜聊天框</title>
+<style>
+  :root { --bg:#fffaf3; --ink:#3b2a1e; --line:#eadfce; --accent:#b4531f; --me:#fbe6d4; --bot:#f3ece0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif; color:var(--ink); background:var(--bg); display:flex; flex-direction:column; height:100vh; }
+  header { display:flex; gap:10px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  h1 { margin:0; font-size:16px; margin-right:auto; }
+  select, input { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; color:inherit; }
+  #who { width:9em; }
+  #log { flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:85%; padding:10px 14px; border-radius:12px; white-space:pre-wrap; line-height:1.55; }
+  .me { align-self:flex-end; background:var(--me); }
+  .bot { align-self:flex-start; background:var(--bot); }
+  .bot.err { color:#b91c1c; }
+  form { display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); }
+  #q { flex:1; }
+  button { font:inherit; padding:10px 18px; border:0; border-radius:8px; background:var(--accent); color:#fff; cursor:pointer; }
+  button:disabled { opacity:.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">里歐烘焙坊｜門市客服</h1>
+  <label>工位 <select id="station">
+    <option value="service">門市客服（客人用）</option>
+    <option value="intake">接單員</option>
+    <option value="kitchen">廚房排產</option>
+    <option value="desk">內勤小幫手</option>
+    <option value="report">老闆日報</option>
+  </select></label>
+  <label id="whoBox" hidden>我是 <input id="who" placeholder="例如 阿德"></label>
+</header>
+<div id="log"><div class="msg bot" id="hello"></div></div>
+<form id="f">
+  <input id="q" autocomplete="off" required>
+  <button id="send">送出</button>
+</form>
+<script>
+const HELLO = {
+  service: ['你好，歡迎光臨里歐烘焙坊！可以問我品項、過敏原、客製蛋糕報價，或幫你記下訂單需求。', '例如：我想訂 8 吋芒果蛋糕、進階造型，多少錢？'],
+  intake: ['我是接單員，可以把需求轉成訂單、查單、送加急／取消／折扣申請。', '例如：把需求 R-001 轉成訂單'],
+  kitchen: ['我是廚房排產，可以算某天的產能、排產單和備料。', '例如：排明天的產能和排產單'],
+  desk: ['我是內勤小幫手：打卡、請假、設備報修、查訂單進度。請先在上面填「我是」。', '例如：我想請明天的假'],
+  report: ['我是老闆日報，只看不改。', '例如：今天的日報'],
+};
+const log = document.getElementById('log'), f = document.getElementById('f'), q = document.getElementById('q'), send = document.getElementById('send');
+const sel = document.getElementById('station'), who = document.getElementById('who'), whoBox = document.getElementById('whoBox');
+function add(text, cls) { const d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d; }
+function setStation() {
+  const st = sel.value; const h = HELLO[st];
+  document.getElementById('hello').textContent = h[0];
+  q.placeholder = h[1];
+  document.getElementById('title').textContent = '里歐烘焙坊｜' + sel.options[sel.selectedIndex].text.replace(/（.*）/, '');
+  whoBox.hidden = st === 'service' || st === 'report' || st === 'kitchen';
+}
+const start = new URLSearchParams(location.search).get('station'); if (start && HELLO[start]) sel.value = start;
+sel.addEventListener('change', setStation); setStation();
+f.addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const message = q.value.trim(); if (!message) return;
+  add(message, 'me'); q.value = ''; send.disabled = true;
+  const wait = add('查詢中…', 'bot');
+  try {
+    const res = await fetch('/api/' + sel.value + '/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message, user: who.value.trim() }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ('伺服器回了 ' + res.status));
+    wait.textContent = data.reply || '（沒有回答）';
+  } catch (e) { wait.textContent = '出錯了：' + e.message; wait.classList.add('err'); }
+  send.disabled = false; q.focus();
+});
+</script>
+</body>
+</html>

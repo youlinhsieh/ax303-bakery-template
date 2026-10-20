@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "arcrun-rag": {
+      "type": "http",
+      "url": "${ARCRUN_RAG_URL}",
+      "headers": {
+        "Authorization": "Bearer ${ARCRUN_RAG_TOKEN}"
+      }
+    }
+  }
+}

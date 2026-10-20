@@ -1,0 +1,31 @@
+# Cloudflare Worker 設定範本（里歐烘焙坊的五個工位 + 訂單頁共用這一個 Worker）。hello/ 有自己的一份。
+# 帶「# 你要改」的地方，叫 Claude Code 照你的帳號填。
+name = "leo-bakery"                 # 你要改：Worker 名字，會變成網址的一部分
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# 店裡的「今天」固定在課程當天，劇本才跑得一樣（真的公司不會有這一行）
+[vars]
+SHOP_TODAY = "2026-10-21"
+
+# D1 資料庫（訂單、排班、日誌住這裡）。先叫 Claude Code 「幫我建一個 D1 叫 leo-bakery-db」，再把 id 填進來
+[[d1_databases]]
+binding = "DB"                      # 程式裡用 env.DB 取用，不要改
+database_name = "leo-bakery-db"
+database_id = "請填建好之後印出來的 id"   # 你要改
+
+# Workers AI（小模型工讀生）。不用另外申請金鑰，用你自己的 Cloudflare 帳號額度
+[ai]
+binding = "AI"                      # 程式裡用 env.AI 取用，不要改
+
+# 靜態檔（訂單頁 orders/index.html、聊天框 orders/chat.html）由同一個 Worker 提供
+[assets]
+directory = "./orders"
+binding = "ASSETS"                  # 程式裡用 env.ASSETS 取用，不要改
+run_worker_first = ["/api/*"]       # /api/ 開頭的先給程式處理，其餘才是網頁
+
+# 讓程式能直接讀 data/*.csv 與 company-data/*.md（重置資料與規則問答用）
+[[rules]]
+type = "Text"
+globs = ["**/*.csv", "**/*.md"]
+fallthrough = true
