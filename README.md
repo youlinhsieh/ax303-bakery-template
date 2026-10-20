@@ -3,7 +3,7 @@
 你不需要會寫程式。全程只在**瀏覽器**（和手機上的 Telegram）。終端機的事，都是 Claude 代勞。
 Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都有「做完你應該看到什麼」。其餘的（Cloudflare、知識庫、金鑰、Telegram）第一天上午在現場一起做。
 
-> **這門課的東西都在 `course/` 資料夾**：給你看的講義、手工貼、小案子，還有店的資料、規格、驗收單、存檔點（見 `course/README.md`）。根目錄其他的（`CLAUDE.md`、`.claude/`）是 Claude 的到職須知與工具，你不用打開。
+> **這門課的東西都在 `course/` 資料夾**：給你看的講義、手工貼，還有店的資料、規格、驗收單、存檔點（見 `course/README.md`）。根目錄其他的（`CLAUDE.md`、`.claude/`）是 Claude 的到職須知與工具，你不用打開。
 
 > 這個 repo 是公開的範本，裡面沒有任何金鑰，也不要把你公司的真實資料放進來——課程全程用一家虛構的烘焙坊「里歐烘焙坊」與假資料。
 
@@ -57,7 +57,6 @@ Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都�
 |---|---|
 | [`course/handouts/`](course/handouts/) | 整堂課 |
 | [`course/paste-by-hand/`](course/paste-by-hand/) | D1 第 9–12 頁 |
-| [`course/mini-project/`](course/mini-project/) | D1 第 13–16 頁 |
 | [`course/company-data/`](course/company-data/) | D1 第 30–32 頁 |
 | [`course/tests/`](course/tests/) | D1 第 34、38 頁；D2 各工位 |
 | [`course/orders/`](course/orders/) | D1 第 35–37 頁；D2 第 7 頁 |

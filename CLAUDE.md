@@ -17,8 +17,7 @@
 
 | 位置（都在 `course/` 底下） | 是什麼 |
 |---|---|
-| `handouts/`、`paste-by-hand/`、`mini-project/`、`README.md` | **給專案負責人（人）看的**：講義、他自己貼進 Cloudflare 的小程式、小案子的說明與要貼給你的需求句。你不用主動讀；他引用時再讀 |
-| `class-chat/` | 第一天上午小案子「雲端聊天介面」的 Worker 專案與驗收題（你照 `mini-project/prompt-for-claude.md` 蓋時才建；跟烘焙坊無關） |
+| `handouts/`、`paste-by-hand/`、`README.md` | **給專案負責人（人）看的**：講義、他自己貼進 Cloudflare 的小程式。你不用主動讀；他引用時再讀 |
 | `company-data/` | 店的規則：簡介、門市品項、客製選項表、阿珠姨的筆記、老闆的驗收條件（上傳到 Arcrun RAG） |
 | `data/` | 舊訂單系統匯出的起始資料：訂單、客戶、品項、員工、排班、設備（匯入 D1） |
 | `orders/index.html` | 唯讀儀表板（做好的一頁網頁：訂單、等核准、排產、日報、日誌；只能看，所有操作在 Telegram） |

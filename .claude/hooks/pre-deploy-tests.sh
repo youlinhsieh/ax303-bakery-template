@@ -13,7 +13,7 @@ root="${CLAUDE_PROJECT_DIR:-$PWD}"
 # 這門課的東西（tests/、scenario/、部署閘）都在 course/ 底下；根目錄只放 Claude 的 harness
 proj="$root"; [ -d "$root/course" ] && proj="$root/course"
 
-# 測試閘是 run-tests skill 建立 .ax303-gate 之後才開；沒開之前（序幕手工貼、小案子、第二幕以前）部署不受影響。
+# 測試閘是 run-tests skill 建立 .ax303-gate 之後才開；沒開之前（序幕手工貼、第二幕以前）部署不受影響。
 # .ax303-gate 的內容是「已經蓋好的工位」，逗號分隔（例：service,intake）；空的＝五個工位都算。
 if [ ! -f "$proj/.ax303-gate" ]; then
   exit 0

@@ -9,7 +9,6 @@
 |---|---|---|
 | [`handouts/`](handouts/) | 講義一（Claude 會講到的詞）、講義二（每個實作段說什麼、該看到什麼） | 整堂課 |
 | [`paste-by-hand/`](paste-by-hand/) | 你自己貼進 Cloudflare 的小程式和步驟 | D1 第 9–12 頁 |
-| [`mini-project/`](mini-project/) | 雲端聊天介面，和要整段貼給 Claude 的那一句 | D1 第 13–16 頁 |
 | [`company-data/`](company-data/) | 店的五份規矩，上傳到 Arcrun RAG | D1 第 30–32 頁 |
 | [`tests/`](tests/) | 每個工位的驗收單（檢查哨先跑它） | D1 第 34、38 頁；D2 各工位 |
 | [`orders/`](orders/) | 工位規格、唯讀儀表板 | D1 第 35–37 頁；D2 第 7 頁 |
