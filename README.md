@@ -24,7 +24,7 @@ Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都�
 |---|---|---|
 | A | 到 **rag.arcrun.dev** 照安裝畫面裝 **Arcrun RAG**。過程中它會要你**登入 Cloudflare**：有帳號就登入，沒有就在那一步**新開一個**（免費版即可）。Arcrun RAG 會裝在這個 Cloudflare 帳號裡 | 你手上有「MCP 網址」（`https://arcrun-mcp.….workers.dev/mcp`；登入 Portal 的設定頁也複製得到）和你登入 Portal 用的 email、密碼。Arcrun 沒有另外的 token 或金鑰。登入失敗請舉手，那是已知問題 |
 | B | 打開 **Cloudflare**（就是剛剛裝 Arcrun RAG 時登入的那個，瀏覽器已經登入了）→ 照 `course/paste-by-hand/how-to-paste.md` 手工貼一個小程式，證明帳號和環境是通的 | 打開網址看到「你現在連到的是 Cloudflare 在 ＿＿ 的機房」 |
-| C | 同一個 Cloudflare 畫面順手拿金鑰：右上角頭像 → **My Profile → API Tokens → Create Token** → 選 **Edit Cloudflare Workers** 範本，再加上兩列 **Account → D1 → Edit**、**Account → Workers AI → Edit**（小模型工讀生要用）。再到 **Workers & Pages** 頁面右側抄下 **Account ID** | 你手上有「一串金鑰」和「一串 Account ID」，先存在只有你看得到的地方 |
+| C | 同一個 Cloudflare 畫面順手拿金鑰：右上角頭像 → **My Profile → API Tokens → Create Token** → 選 **Edit Cloudflare Workers** 範本，再加上兩列 **Account → D1 → Edit**、**Account → Workers AI → Edit**（小模型工讀生要用）。再在 Cloudflare 上方的**搜尋框輸入「id」**，點 **Copy account ID（複製 Account ID）** | 你手上有「一串金鑰」和「一串 Account ID」，先存在只有你看得到的地方 |
 | D | **接給 Claude**，兩件事：<br>① 打開 claude.ai 的**設定 → 連接器 → 新增自訂連接器**，名稱填 `Arcrun RAG`，網址貼 A 的 MCP 網址，儲存後按**授權**，在跳出的頁面填你的 **Portal email ＋密碼**（就是你登入知識庫的那一組）；<br>② 在 claude.ai/code 選你的 repo，打開**環境（Environment）設定**，**Network access** 選 **Full**，然後在**環境變數**填兩行：<br>`CLOUDFLARE_API_TOKEN=C 的金鑰`<br>`CLOUDFLARE_ACCOUNT_ID=C 的 Account ID` | ① 連接器清單裡 Arcrun RAG 顯示已連線。② 環境存好。兩個 Cloudflare 的值只填在這裡，不要貼進對話、不要寫進任何檔案；Arcrun 這邊全程沒有 token 要填 |
 | E | **開一個新的工作階段**，對 Claude 說：「請執行 setup」 | Claude 逐項檢查，結尾給你一張清單。**全部「通過」才往下**；哪一項沒過，Claude 只會告訴你那一項怎麼辦，照做再說一次「請執行 setup」。Arcrun RAG 那一列會真的讀一次你的知識庫地圖，讀得到才算通過。Telegram 那一列早上會顯示「略過（下午才需要）」，這是正常的 |
 
