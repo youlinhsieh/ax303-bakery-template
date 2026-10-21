@@ -20,10 +20,11 @@
 | `handouts/`、`paste-by-hand/`、`README.md` | **給專案負責人（人）看的**：講義、他自己貼進 Cloudflare 的小程式。你不用主動讀；他引用時再讀 |
 | `company-data/` | 店的規則：簡介、門市品項、客製選項表、阿珠姨的筆記、老闆的驗收條件（上傳到 Arcrun RAG） |
 | `data/` | 舊訂單系統匯出的起始資料：訂單、客戶、品項、員工、排班、設備（匯入 D1） |
-| `orders/index.html` | 唯讀儀表板（做好的一頁網頁：訂單、等核准、排產、日報、日誌；只能看，所有操作在 Telegram） |
+| `orders/index.html` | 唯讀儀表板（做好的一頁網頁：Telegram bot 接通狀態、訂單、等核准、排產、日報、日誌；只能看，所有操作在 Telegram） |
 | `orders/API-contract.md`、`orders/SDD-stations.md` | 前後端之間的約定、五個工位的規格 |
 | `tests/<工位>/` | 驗收單：T＝答得對、X＝陷阱題（擋得住） |
 | `scenario/one-day-script.md` | 老闆的驗收：一天從早到晚的事件，五個工位照順序跑 |
+| （技能）`telegram-check` | 學員說「幫我檢查 Telegram 接好了沒」：你跑 `.claude/scripts/check-telegram.mjs <Worker 網址>`，沒接好就由 Worker 自己接好，回報「已接上」或「卡在哪」；你拿不到 token |
 | `savepoints/` | 落後時接回全班進度用（`restore-savepoint` 技能） |
 | `logs/` | 紅燈記錄 |
 | `wrangler.toml`、`src/`、`.ax303-gate` | 烘焙坊的 Worker 設定、你蓋的程式、部署前測試閘（`run-tests` 技能建立） |

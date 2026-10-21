@@ -1,5 +1,7 @@
 # AX-303 學員前置作業（先讀這一份）
 
+> 📘 **第一天全部動作（上午＋下午）照順序寫在 [`course/SETUP.md`](course/SETUP.md)**，卡住先看那份最後的「常見問題」。
+
 你不需要會寫程式。全程只在**瀏覽器**（和手機上的 Telegram）。終端機的事，都是 Claude 代勞。
 Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都有「做完你應該看到什麼」。其餘的（Cloudflare、知識庫、金鑰、Telegram）第一天上午在現場一起做。
 
@@ -27,7 +29,7 @@ Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都�
 | B | 打開 **Cloudflare**（就是剛剛裝 Arcrun RAG 時登入的那個，瀏覽器已經登入了）→ 照 `course/paste-by-hand/how-to-paste.md` 手工貼一個小程式，證明帳號和環境是通的 | 打開網址看到「你現在連到的是 Cloudflare 在 ＿＿ 的機房」 |
 | C | 同一個 Cloudflare 畫面順手拿金鑰：右上角頭像 → **My Profile → API Tokens → Create Token** → 選 **Edit Cloudflare Workers** 範本，再加上兩列 **Account → D1 → Edit**、**Account → Workers AI → Edit**（小模型工讀生要用）。再在 Cloudflare 上方的**搜尋框輸入「id」**，點 **Copy account ID（複製 Account ID）** | 你手上有「一串金鑰」和「一串 Account ID」，先存在只有你看得到的地方 |
 | D | **接給 Claude**，兩件事：<br>① 打開 claude.ai 的**設定 → 連接器 → 新增自訂連接器**，名稱填 `Arcrun RAG`，網址貼 A 的 MCP 網址，儲存後按**授權**，在跳出的頁面填你的 **Portal email ＋密碼**（就是你登入知識庫的那一組）；<br>② 在 claude.ai/code 選你的 repo，打開**環境（Environment）設定**，**Network access** 選 **Full**，然後在**環境變數**填兩行：<br>`CLOUDFLARE_API_TOKEN=C 的金鑰`<br>`CLOUDFLARE_ACCOUNT_ID=C 的 Account ID` | ① 連接器清單裡 Arcrun RAG 顯示已連線。② 環境存好。兩個 Cloudflare 的值只填在這裡，不要貼進對話、不要寫進任何檔案；Arcrun 這邊全程沒有 token 要填 |
-| E | **開一個新的工作階段**，對 Claude 說：「請執行 setup」 | Claude 逐項檢查，結尾給你一張清單。**全部「通過」才往下**；哪一項沒過，Claude 只會告訴你那一項怎麼辦，照做再說一次「請執行 setup」。Arcrun RAG 那一列會真的讀一次你的知識庫地圖，讀得到才算通過。Telegram 那一列看 G 步放的兩個 Secret 名稱在不在；還沒做 G 步會提醒你，但不擋 |
+| E | **開一個新的工作階段**，對 Claude 說：「請執行 setup」 | Claude 逐項檢查，結尾給你一張清單。**全部「通過」才往下**；哪一項沒過，Claude 只會告訴你那一項怎麼辦，照做再說一次「請執行 setup」。Arcrun RAG 那一列會真的讀一次你的知識庫地圖，讀得到才算通過。Telegram 那一列看 G 步放的 Secret（`TELEGRAM_BOT_TOKEN`）名稱在不在；還沒做 G 步會提醒你，但不擋 |
 
 > 不用先另外去開 Cloudflare 帳號：開帳號是裝 Arcrun RAG 的其中一步。
 
@@ -38,7 +40,7 @@ Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都�
 | Arcrun RAG | 沒有金鑰，用 Portal 帳密登入 | claude.ai **設定 → 連接器** | 新增自訂連接器，貼 MCP 網址，授權時填 Portal email＋密碼 |
 | Cloudflare 金鑰（C 拿到的那串） | **是** | claude.ai/code 環境設定 → **環境變數** | `CLOUDFLARE_API_TOKEN`＝金鑰（課堂預設；Network secrets 是選用、尚未驗證，見下方） |
 | Cloudflare Account ID | 不是 | 同一個環境設定 → **環境變數** | `CLOUDFLARE_ACCOUNT_ID`＝Account ID |
-| Telegram bot token、webhook 密語 | **是** | **Cloudflare 後台**（上午，見 G），不是這裡 | 直接填進 Worker 的 Secret，不經過 Claude |
+| Telegram bot token | **是** | **Cloudflare 後台**（上午，見 G），不是這裡 | 直接填進 Worker 的 Secret，不經過 Claude |
 
 > **選用、尚未驗證（課堂不要當預設，講師說可以再試）**：Cloudflare 金鑰也可以改放 **Network secrets → Add secret**：**Name** 填 `Cloudflare`；**Secret type** 照預設 **Bearer**；**Allowed websites** 填 `api.cloudflare.com`；**Custom headers** 那一列照預設（**Name** `Authorization`、**Prefix** `Bearer`），**Value** 貼 C 的金鑰；按 **Add**。存好看不到值也不能改，貼錯要刪掉重加；Team 方案沒組織管理員角色時是短表單（**Host** `api.cloudflare.com`、**Secret type** **Token**、**Value** 貼金鑰）。這條路 wrangler 能不能用還沒實測，所以預設是環境變數。
 
@@ -47,13 +49,13 @@ Windows、Mac 做法一樣。**開課前只要完成下面四步**，每步都�
 | 現場步驟 | 做什麼 | 做完你應該看到 |
 |---|---|---|
 | F | 在手機或電腦的 **Telegram** 找 **@BotFather**，傳 `/newbot`，照它問的取個名字（帳號要以 `bot` 結尾）。它會回你一串 **bot token**。再對你的新 bot 傳一句 `/start` | 你手上有「一串 bot token」（長得像 `123456:ABC-…`） |
-| G | **token 不給 Claude**，自己放進 Cloudflare：<br>① Cloudflare → **Workers & Pages** → **Create** → **Worker** → 名稱一定要填 **`leo-bakery`**（跟 `course/wrangler.toml` 的名字一樣，之後也不要改）→ **Deploy**（裡面先是 Hello World 沒關係，下午 Claude 會把門市客服蓋進同一個 Worker）。記下它的網址 `https://leo-bakery.….workers.dev`。<br>② 進這個 Worker → **Settings → Variables and Secrets → Add**，**Type** 選 **Secret**，名稱 `TELEGRAM_BOT_TOKEN`，值貼 F 的 token；再加一個名稱 `TELEGRAM_WEBHOOK_SECRET`，值自己亂打一串英文字母和數字（不要空格，記下來）；按 Deploy。<br>③ 在你自己的瀏覽器網址列貼上這串（`<…>` 換成你的），按 Enter：<br>`https://api.telegram.org/bot<F 的 token>/setWebhook?url=<Worker 網址>/api/telegram/webhook&secret_token=<剛剛那串亂碼>` | 瀏覽器畫面出現 `{"ok":true,"result":true,…}`。這時對 bot 說話還不會回，**正常**：下午 Claude 把門市客服蓋進 `leo-bakery` 之後才會回（之後 Claude 部署新版，這兩個 Secret 會留著，總管 10-21 實測過） |
+| G | **token 不給 Claude**，自己放進 Cloudflare（只有這兩件事：建 Worker、貼 token；**不用拼任何網址、不用自己想密語**）：<br>① Cloudflare → **Workers & Pages** → **Create** → **Worker** → 名稱一定要填 **【leo-bakery】**（一字不差、全小寫、中間是減號；跟 `course/wrangler.toml` 一樣，之後也不要改）→ **Deploy**（裡面先是 Hello World 沒關係，下午 Claude 會把門市客服蓋進同一個 Worker）。<br>② 進這個 Worker → **Settings → Variables and Secrets → Add**，**Type** 選 **Secret**，名稱 `TELEGRAM_BOT_TOKEN`，值貼 F 的 token；按 **Deploy**。 | Worker 的 Secret 清單裡有 `TELEGRAM_BOT_TOKEN`（值是隱藏的，正常）。這時對 bot 說話還不會回，**正常**：下午 Claude 把門市客服蓋進 `leo-bakery` 之後，**對 Claude 說「幫我檢查 Telegram 接好了沒」**：它會去查，沒接好就讓 Worker 自己接好（你不用拼網址、不用編密語；Claude 全程看不到 token），最後回你「已接上」或「卡在哪」；儀表板最上面「Telegram bot」那一格也會變成綠色「已接通」。之後 Claude 部署新版，Secret 會留著 |
 
 ## 第一天下午：門市客服上線後
 
 | 現場步驟 | 做什麼 | 做完你應該看到 |
 |---|---|---|
-| H | Claude 把門市客服部署到 `leo-bakery` 之後，對你的 bot 傳 `/id`，把回的數字交給 Claude，說「我是店長，也是店員阿德」 | bot 回你一串數字就是接通了；Claude 把編號寫進設定，之後你在 Telegram 上收得到「等核准」的按鈕。沒回就先找講師 |
+| H | Claude 把門市客服部署到 `leo-bakery` 之後，先對 Claude 說「**幫我檢查 Telegram 接好了沒**」，等它回「已接上」（儀表板最上面「Telegram bot」那一格也是綠色「已接通」）；再對你的 bot 傳 `/id`，把回的數字交給 Claude，說「我是店長，也是店員阿德」 | bot 回你一串數字就是接通了；Claude 把編號寫進設定，之後你在 Telegram 上收得到「等核准」的按鈕。那一格是紅色就照它寫的白話處理（缺 Secret／Telegram 不認 token 要重貼）；還不行先找講師 |
 
 ## 課程資料夾地圖（從簡報點進來會到這些地方）
 
@@ -92,7 +94,7 @@ Claude 會先把你原本寫的收起來（不會刪），放進存檔點的程�
 
 ## 安全提醒
 
-- 金鑰只放在環境設定的環境變數（Cloudflare 金鑰）和 Cloudflare 後台的 **Secret**（Telegram），不貼進對話、不寫進檔案。課後想收回：Cloudflare 的 API Tokens 頁刪掉那一把、在 @BotFather 對 bot 傳 `/revoke` 換掉 token，環境設定裡刪掉 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 兩個變數（若試過 Network secret，也刪掉那一筆）、Cloudflare 後台 Worker 的兩個 Telegram Secret；Arcrun 那邊到 claude.ai 的連接器清單把 Arcrun RAG 移除。
+- 金鑰只放在環境設定的環境變數（Cloudflare 金鑰）和 Cloudflare 後台的 **Secret**（Telegram），不貼進對話、不寫進檔案。課後想收回：Cloudflare 的 API Tokens 頁刪掉那一把、在 @BotFather 對 bot 傳 `/revoke` 換掉 token，環境設定裡刪掉 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 兩個變數（若試過 Network secret，也刪掉那一筆）、Cloudflare 後台 Worker 的 Telegram Secret（`TELEGRAM_BOT_TOKEN`）；Arcrun 那邊到 claude.ai 的連接器清單把 Arcrun RAG 移除。
 - 看到任何畫面要你輸入金鑰、卻不是上面列的地方，先停下來問講師。
 
 ## 卡關了？

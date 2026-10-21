@@ -827,6 +827,43 @@ export function createApp(data) {
     for (const a of await all(env, "SELECT * FROM approvals WHERE status='待核准' AND id>? ORDER BY id", before)) for (const mg of managers) await tgSend(env, mg, approvalLine(a), approvalKeys(a.id));
   }
 
+  // Telegram 自己接上：學員只放一個 Secret（TELEGRAM_BOT_TOKEN）。webhook 密語由 token 算出來（學員不用編、不用放），
+  // 「告訴 Telegram 把訊息送到這個 Worker」（setWebhook）也由 Worker 自己做——儀表板每次載入問狀態時，發現還沒登記或登記錯網址就補登記。
+  // token、密語的值絕不出現在回應、日誌、畫面。
+  const webhookSecret = async (env) => {
+    const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('leo-bakery:telegram-webhook:' + env.TELEGRAM_BOT_TOKEN));
+    return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, '0')).join('');
+  };
+  const tgCall = async (env, method, body) => { // 回 Telegram 的 JSON；連不上或格式不對丟錯（錯誤訊息不含網址，網址裡有 token）
+    let r; try { r = await fetch(`${env.TELEGRAM_API || 'https://api.telegram.org'}/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) }); } catch { throw new Error('連不上 Telegram'); }
+    try { return await r.json(); } catch { throw new Error('Telegram 回的不是預期的格式'); }
+  };
+  // state：secret-missing（token 沒放）／token-invalid（Telegram 不認這把 token，或連不上）／
+  //        webhook-set-failed（Worker 想自己登記網址但 Telegram 不收）／delivery-error（Telegram 送不進來）／ok
+  async function telegramStatus(env, origin) {
+    const have = { TELEGRAM_BOT_TOKEN: !!env.TELEGRAM_BOT_TOKEN };
+    const missing = Object.keys(have).filter((k) => !have[k]);
+    const expected = origin + '/api/telegram/webhook';
+    const out = (state, summary, extra = {}) => ({ state, summary, secrets: have, missing, expected_webhook: expected, registered_now: false, webhook: null, ...extra });
+    if (missing.length) return out('secret-missing', 'Secret 還沒放：TELEGRAM_BOT_TOKEN（到 Cloudflare 後台 Worker leo-bakery 的 Settings → Variables and Secrets 貼上 BotFather 給的 token，按 Deploy）');
+    const hookSecret = await webhookSecret(env);
+    const scrub = (x) => String(x == null ? '' : x).split(env.TELEGRAM_BOT_TOKEN).join('<token>').split(hookSecret).join('<secret>').slice(0, 200);
+    let info;
+    try { info = await tgCall(env, 'getWebhookInfo'); } catch (e) { return out('token-invalid', `${e.message}（稍後再看；一直這樣就重新貼一次 TELEGRAM_BOT_TOKEN）`); }
+    if (!info || !info.ok) return out('token-invalid', `Telegram 不認這把 token：${scrub(info && info.description) || '沒有說明'}（到 BotFather 確認 token，重新貼一次 TELEGRAM_BOT_TOKEN）`);
+    let w = info.result || {}, registeredNow = false;
+    if (w.url !== expected) { // 還沒登記，或登記在別的網址：Worker 自己補上
+      let res; try { res = await tgCall(env, 'setWebhook', { url: expected, secret_token: hookSecret, allowed_updates: ['message', 'callback_query'] }); } catch (e) { return out('webhook-set-failed', `Worker 想把網址登記給 Telegram，失敗了：${e.message}`, { webhook: { url: scrub(w.url) } }); }
+      if (!res || !res.ok) return out('webhook-set-failed', `Worker 想把網址登記給 Telegram，Telegram 不收：${scrub(res && res.description) || '沒有說明'}`, { webhook: { url: scrub(w.url) } });
+      registeredNow = true;
+      try { const again = await tgCall(env, 'getWebhookInfo'); if (again && again.ok) w = again.result || {}; else w = { ...w, url: expected }; } catch { w = { ...w, url: expected }; }
+    }
+    const webhook = { url: scrub(w.url), pending: Number(w.pending_update_count || 0), last_error_message: scrub(w.last_error_message), last_error_date: w.last_error_date || null };
+    const recent = w.last_error_date && Date.now() / 1000 - w.last_error_date < 3600; // 錯誤超過一小時又沒有積壓的訊息＝舊帳，不算現在的問題
+    if (!registeredNow && w.last_error_message && (recent || webhook.pending > 0)) return out('delivery-error', `Telegram 想把訊息送進來，失敗了：${webhook.last_error_message}`, { webhook });
+    return out('ok', registeredNow ? 'Telegram bot 剛剛自動接上了：Worker 已把網址登記給 Telegram，現在可以對 bot 說話' : 'Telegram bot 已接通：Secret 在、網址對、Telegram 沒回報送不進來', { webhook, registered_now: registeredNow });
+  }
+
   const CHAT = { service: serviceChat, intake: intakeChat, kitchen: kitchenChat, desk: deskChat };
   const AGENTS = { service: serviceAgent, intake: intakeAgent, kitchen: kitchenAgent, desk: deskAgent };
 
@@ -852,11 +889,12 @@ export function createApp(data) {
         await ensure(env);
         const body = async () => req.json().catch(() => ({}));
         if (p === '/api/telegram/webhook' && m === 'POST') {
-          if (!env.TELEGRAM_WEBHOOK_SECRET || !env.TELEGRAM_BOT_TOKEN) return json({ error: 'Telegram 還沒設定（TELEGRAM_BOT_TOKEN、TELEGRAM_WEBHOOK_SECRET）' }, 503);
-          if (req.headers.get('x-telegram-bot-api-secret-token') !== env.TELEGRAM_WEBHOOK_SECRET) return json({ error: '不是 Telegram 送來的' }, 403);
+          if (!env.TELEGRAM_BOT_TOKEN) return json({ error: 'Telegram 還沒設定（TELEGRAM_BOT_TOKEN）' }, 503);
+          if (req.headers.get('x-telegram-bot-api-secret-token') !== await webhookSecret(env)) return json({ error: '不是 Telegram 送來的' }, 403);
           await telegram(env, await body());
           return json({ ok: true });
         }
+        if (p === '/api/telegram/status' && m === 'GET') return json(await telegramStatus(env, url.origin));
         if (p === '/api/reset' && m === 'POST') { await reset(env); return json({ ok: true }); }
         if (p === '/api/orders' && m === 'GET') return json({ orders: await all(env, 'SELECT o.*, c.name AS customer FROM orders o LEFT JOIN customers c ON c.customer_id=o.customer_id ORDER BY o.order_id') });
         let mm = p.match(/^\/api\/orders\/([^/]+)$/);

@@ -6,7 +6,7 @@
 
 讓「里歐烘焙坊的一天」（`scenario/one-day-script.md`）由五位小模型工讀生跑完，人只做一件事：店長按核准。主管（Claude Code）負責蓋、測、修，學員不寫程式。
 
-**入口只有 Telegram**：客人問、下單，員工打卡、請假、報修，店長核准，全都在 Telegram 上做。網頁只剩 `orders/index.html` 一頁唯讀儀表板（看訂單、等核准、排產、日報、日誌），用來示範「Cloudflare 也能放網頁」。成功標準見 `company-data/owner-acceptance.md`（轉正四條）。
+**入口只有 Telegram**：客人問、下單，員工打卡、請假、報修，店長核准，全都在 Telegram 上做。網頁只剩 `orders/index.html` 一頁唯讀儀表板（看 Telegram bot 接通了沒、訂單、等核准、排產、日報、日誌），用來示範「Cloudflare 也能放網頁」。成功標準見 `company-data/owner-acceptance.md`（轉正四條）。
 
 ## 五個工位
 
@@ -40,7 +40,7 @@
 
 ## Telegram
 
-一個 bot（在 @BotFather 建，拿到 token），Telegram 把每則訊息 POST 到 Worker 的 `/api/telegram/webhook`（部署後由**學員自己在瀏覽器**開 `setWebhook` 網址告訴 Telegram 這個網址，並帶 `secret_token`；你不會拿到 bot token，也不要去問）。
+一個 bot（在 @BotFather 建，拿到 token），Telegram 把每則訊息 POST 到 Worker 的 `/api/telegram/webhook`。**學員在 Telegram 這件事上只做兩個動作：領 token、把 token 貼進 Cloudflare 後台的 Secret**；不用拼任何網址、不用自己編密語。「告訴 Telegram 把訊息送到這個 Worker」（`setWebhook`）由 **Worker 自己做**（見下方〈Worker 自己接上 Telegram〉）。你不會拿到 bot token，也不要去問。
 
 | 誰 | 怎麼認 | 進哪個工位 |
 |---|---|---|
@@ -49,10 +49,35 @@
 | 店長 | `TELEGRAM_MANAGERS`（使用者編號） | 同店員，另外：工位送出申請時**店長會收到訊息，附「核准／退回」按鈕**；`/待核准` 列出全部 |
 
 - 對 bot 說 `/id`，它回你的 Telegram 編號（設定店員、店長時要用）。
-- 秘密（`TELEGRAM_BOT_TOKEN`、`TELEGRAM_WEBHOOK_SECRET`）由學員直接填進 Cloudflare 後台（Worker → Settings → Variables and Secrets → Secret），不經過你、不寫進任何檔案。程式裡只讀 `env.TELEGRAM_BOT_TOKEN`、`env.TELEGRAM_WEBHOOK_SECRET`；兩個沒設時 `/api/telegram/webhook` 回 503 並說明缺哪個。部署好之後，把「Worker 網址」和 setWebhook 要開的網址格式（token 與密語留 `<…>` 佔位符）告訴學員。
+- 秘密只有一個：`TELEGRAM_BOT_TOKEN`，由學員直接填進 Cloudflare 後台（Worker → Settings → Variables and Secrets → Secret），不經過你、不寫進任何檔案。程式裡只讀 `env.TELEGRAM_BOT_TOKEN`；沒設時 `/api/telegram/webhook` 回 503 並說明缺它。webhook 密語（Telegram 帶在 `X-Telegram-Bot-Api-Secret-Token` 標頭裡、Worker 用來認「真的是 Telegram 送的」）**由 token 算出來**（例如 SHA-256 十六進位字串，只含英數字），不要叫學員編、不要叫學員放。部署好之後，學員貼完 Secret 對你說「幫我檢查 Telegram 接好了沒」，你用 `telegram-check` 技能去查（`node .claude/scripts/check-telegram.mjs <Worker 網址>`）：沒接好就由 Worker 自己向 Telegram 登記（你不拿 token），最後回報「已接上」或「卡在哪」；學員打開儀表板也會觸發同一件事。
 - 核准／退回**只有店長的按鈕走得到**，不經過任何工位、不經過小模型；按的人不是店長要拒絕。
 - 客人資料不齊時（「還需要：取貨日期、電話」），下一句只補缺的就要接得起來：把上一句存起來，和這一句合併再處理。
 - 回覆太長要截斷（Telegram 單則上限 4096 字）。
+
+### Worker 自己接上 Telegram
+
+- 儀表板每次載入都會問 `GET /api/telegram/status`。後端在這時：先問 Telegram 它記得的 webhook 網址（`getWebhookInfo`）；**空的或不是「這個 Worker 的網址 + `/api/telegram/webhook`」，就由 Worker 自己呼叫 `setWebhook` 登記**（`secret_token` 用上面算出來的密語），登記完再讀一次確認。已經登記對的就不重複登記。
+- 為什麼放在狀態網址：CC 查接好了沒、學員開儀表板都會打它，而 Telegram 要求登記的網址必須是這個 Worker 的 https 網址，Worker 看自己收到的請求就知道。這個動作只動 Telegram 那一側，不改 D1、不寫日誌。
+- 登記時用的 token、密語不得出現在回應、日誌、畫面（Telegram 回的錯誤文字若含它們要抹掉）。
+
+### 儀表板上的「Telegram bot 接通了嗎」
+
+儀表板（唯讀、沒有按鈕）有一格「Telegram bot」，學員打開就知道 bot 接通了沒；接不通時看得出卡在哪一環，不用問講師，也不用讓 Claude 碰 token。資料來自 `GET /api/telegram/status`（見 `orders/API-contract.md`），後端這樣判斷（由上往下，第一個不符合的就是卡點）：
+
+| state | 條件 | 儀表板白話 |
+|---|---|---|
+| `secret-missing` | `TELEGRAM_BOT_TOKEN` 沒放 | Secret 還沒放：TELEGRAM_BOT_TOKEN（並說去哪貼） |
+| `token-invalid` | token 放了，但問 Telegram（`getWebhookInfo`）被拒或連不上 | Telegram 不認這把 token／連不上 |
+| `webhook-set-failed` | Telegram 記的網址空的或不對，Worker 想自己 `setWebhook`，Telegram 不收（或連不上） | Worker 想把網址登記給 Telegram，失敗了：（Telegram 的原文） |
+| `delivery-error` | Telegram 回報最近送不進來（`last_error_message`，一小時內，或還有訊息積壓） | Telegram 想送進來失敗了：（原文，例如 403 Forbidden） |
+| `ok` | 以上都沒有（剛剛才自動登記成功時，回應帶 `registered_now: true`，畫面寫「剛剛自動接上了」） | 已接通 |
+
+要點：
+
+- **儀表板沒有按鈕，token 與密語的值不能出現在畫面、API 回應或日誌**：回應只說「有沒有放」（true／false）；Telegram 回的錯誤文字若含 token 或密語要先抹掉；這個網址不寫工作日誌。
+- 儀表板上不放任何按鈕（不能從網頁放 Secret）；缺 Secret 或 token 不對時，畫面用白話告訴學員去 Cloudflare 後台貼；webhook 不用學員做。
+- 問 Telegram 的動作由 Worker 做（Worker 本來就持有 token）；Claude 不需要、也拿不到 token。
+- 這個網址讀不到（例如後端還沒做）時，儀表板顯示「還沒有 Telegram 狀態」，不要讓整頁壞掉。
 
 ## 小模型三格（每個工位做之前先填滿）
 
@@ -71,7 +96,7 @@
 
 ## 順序（對應課程的實作）
 
-1. 先蓋 `service`，接上 Telegram（客人在 Telegram 上問得到、答得對、擋得住），再部署儀表板頁（前端已做好，打合約裡的網址）。
+1. 先蓋 `service`，接上 Telegram（客人在 Telegram 上問得到、答得對、擋得住），再部署儀表板頁（前端已做好，打合約裡的網址，含 `/api/telegram/status`）。
 2. 接上舊訂單系統的資料後，加開 `intake`、`kitchen`；再加 `desk`。
 3. 全部工位都加上工作日誌後，蓋 `report`。
 4. 每蓋完一個，跑測試；紅燈就修，全綠才部署。

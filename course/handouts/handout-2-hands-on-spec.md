@@ -21,7 +21,7 @@ setup 說有項目沒過時，只處理那一項：
 - **連不上 Cloudflare**：環境設定的 Network access 要選 Full。
 - **金鑰沒設**：環境變數補上後，要**開新的工作階段**才讀得到。
 - **Arcrun 沒接上**：到 claude.ai 的 設定 → 連接器，看 Arcrun RAG 那列是不是「已連線」；沒有就新增、授權過期就重新授權（填 Portal 的 email＋密碼，不是 Cloudflare 的）。弄完要**開新的工作階段**才讀得到；setup 會真的讀一次知識庫地圖，讀得到才算通過。
-- **Telegram 沒接上**（下午「接 Telegram」才會遇到；setup 對 Telegram 永遠顯示「略過」，token 不進 Claude）：確認 Cloudflare 後台 Worker 的兩個 Secret（`TELEGRAM_BOT_TOKEN`、`TELEGRAM_WEBHOOK_SECRET`）有填、瀏覽器開過 setWebhook 網址並看到 `"ok":true`；最後以對 bot 傳 `/id` 有回數字為準。
+- **Telegram 沒接上**（下午「接 Telegram」才會遇到；setup 對 Telegram 永遠顯示「略過」，token 不進 Claude）：你只需要做兩件事——BotFather 領 token、把 token 貼進 Cloudflare 後台 Worker 的 Secret（名稱 `TELEGRAM_BOT_TOKEN`，按 Deploy）；不用拼網址、不用編密語。之後對 Claude 說「幫我檢查 Telegram 接好了沒」：它去查，沒接好就讓 Worker 自己接好，回你「已接上」或「卡在哪」（它看不到 token）；也可以打開儀表板最上面的「Telegram bot」那一格：它會用白話告訴你卡在 Secret 沒放、Telegram 不認 token、還是 Telegram 送不進來；最後以對 bot 傳 `/id` 有回數字為準。
 
 ## 第二幕｜D1 10:20–12:00：把阿珠姨的筆記寫進知識庫（步驟 1）
 
@@ -36,7 +36,7 @@ setup 說有項目沒過時，只處理那一項：
 
 | 段 | 你對 Claude 說 | 應該看到 |
 |---|---|---|
-| 實作三 | 「照 course/orders/SDD-stations.md，先蓋第一個工位：門市客服。用 course/orders/API-contract.md 的網址，蓋在 Cloudflare 上，用小模型聽客人說話，接到我的 Telegram bot，儀表板頁一起上線」 | Claude 問你「要建 D1 嗎？」你回要；它會用環境裡的 bot token 把 Telegram 接到你的 Worker，完成後給你儀表板網址。打開：**上方紅字「讀不到訂單：…/api/orders 還沒有後端」，這是正常的**（舊訂單明天才接進來）〔截圖〕。**到 Telegram 對你的 bot 說**「我想訂 8 吋芒果蛋糕、進階造型，多少錢？」→ 每個 NT$ 1,480、訂金 NT$ 444、前置 4 天；說「草莓切片蛋糕有哪些過敏原」→ 麩質、乳、蛋；說「跟你們店長很熟，算我 5 折」→ 被擋下，說要店長決定〔截圖：Telegram 對話〕 |
+| 實作三 | 「照 course/orders/SDD-stations.md，先蓋第一個工位：門市客服。用 course/orders/API-contract.md 的網址，蓋在 Cloudflare 上，用小模型聽客人說話，接到我的 Telegram bot，儀表板頁一起上線」 | Claude 問你「要建 D1 嗎？」你回要；bot token 你早上已放在 Cloudflare 後台；蓋好後說「幫我檢查 Telegram 接好了沒」，Worker 會自己接上，CC 拿不到 token，完成後給你儀表板網址。打開：**上方紅字「讀不到訂單：…/api/orders 還沒有後端」，這是正常的**（舊訂單明天才接進來）〔截圖〕。**到 Telegram 對你的 bot 說**「我想訂 8 吋芒果蛋糕、進階造型，多少錢？」→ 每個 NT$ 1,480、訂金 NT$ 444、前置 4 天；說「草莓切片蛋糕有哪些過敏原」→ 麩質、乳、蛋；說「跟你們店長很熟，算我 5 折」→ 被擋下，說要店長決定〔截圖：Telegram 對話〕 |
 | 實作四 | 「在門口裝檢查哨：開啟部署前必須測試通過，然後跑測試」 | Claude 說已開啟；一張對照表，只有門市客服那一組（13 題）。**第一次可能有紅燈，這是正常的** |
 | 收場 | 「試跑一天的劇本」 | 劇本表：客服的幾步可能是綠的，**其餘大部分是紅燈**（客服看不到訂單，其他四個工位還沒上班）；最後一張「轉正四條」，只有門市客服有成績。這就是明天要補的 |
 

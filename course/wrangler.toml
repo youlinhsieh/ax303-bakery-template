@@ -1,6 +1,6 @@
 # Cloudflare Worker 設定範本（里歐烘焙坊的五個工位 + 訂單頁共用這一個 Worker）。
 # 帶「# 你要改」的地方，叫 Claude Code 照你的帳號填。
-name = "leo-bakery"                 # 你要改：Worker 名字，會變成網址的一部分
+name = "leo-bakery"                 # 🔴 不要改：Worker 名字固定是【leo-bakery】，上午在 Cloudflare 建的 Worker 與 Telegram Secret 都掛在這個名字上
 main = "src/index.js"
 compatibility_date = "2025-01-01"
 
@@ -12,8 +12,8 @@ MODEL = "@cf/meta/llama-3.1-8b-instruct-fp8"
 # Telegram：店員是誰、誰是店長（Telegram 使用者編號，不是秘密）。格式見 orders/SDD-stations.md〈Telegram〉
 TELEGRAM_STAFF = "{}"               # 你要改：例如 {"123456789":"阿德"}（名字要是 data/staff.csv 裡的員工）
 TELEGRAM_MANAGERS = ""              # 你要改：店長的 Telegram 使用者編號，多人用逗號
-# 下面兩個是秘密，不能寫在這個檔案裡，也不經過 Claude：學員自己在 Cloudflare 後台填（Worker → Settings → Variables and Secrets → Secret）：
-#   TELEGRAM_BOT_TOKEN（@BotFather 給的）、TELEGRAM_WEBHOOK_SECRET（自己想一串亂碼）
+# 下面這個是秘密，不能寫在這個檔案裡，也不經過 Claude：學員自己在 Cloudflare 後台填（Worker → Settings → Variables and Secrets → Secret）：
+#   TELEGRAM_BOT_TOKEN（@BotFather 給的）。只有這一個；webhook 密語由 token 算出來、網址由 Worker 自己登記給 Telegram（orders/SDD-stations.md〈Worker 自己接上 Telegram〉）
 
 # D1 資料庫（訂單、排班、日誌住這裡）。先叫 Claude Code 「幫我建一個 D1 叫 leo-bakery-db」，再把 id 填進來
 [[d1_databases]]

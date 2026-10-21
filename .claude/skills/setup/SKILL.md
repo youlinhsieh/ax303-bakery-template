@@ -27,7 +27,7 @@ description: 課前與 D1 開場用（Claude Code on the web 版）。檢查雲�
    - 呼叫回授權錯誤（401／未授權／過期）→ 到同一頁按 Arcrun RAG 那列的**重新授權**，在跳出的頁面填 Portal 的 email＋密碼；再開新的工作階段。
    - 呼叫逾時或連不上 → 先確認 Arcrun RAG 的網址在瀏覽器打得開（Portal 能登入），再重試一次；仍不行才轉給講師。
    - 只看「連接器那一列存在」**不算通過**：授權過期或網址貼錯時，那一列還是在。一定要真的呼叫成功。
-8. **Telegram bot（上午環境架設時學員自己放好；只看名稱在不在）**：bot token 與 webhook 密語由學員直接放進 Cloudflare 後台 Worker `leo-bakery` 的 Secret，**不進這個工作區**，你拿不到、也不要去問學員 token。跑 `npx wrangler secret list --name leo-bakery`（只列名稱，不會印值）：看到 `TELEGRAM_BOT_TOKEN` 和 `TELEGRAM_WEBHOOK_SECRET` 兩個名稱 → 印「通過（名稱都在；bot 要等下午門市客服蓋好才會回話）」。Worker 不存在或少一個名稱 → 印「還沒放好：照 README 的 G 步做」，**不擋**其他項目。學員說下午 bot 沒反應 → 請他確認瀏覽器開過的 setWebhook 網址有回 `"ok":true`，最後以對 bot 傳 `/id` 有回數字為準。
+8. **Telegram bot（上午環境架設時學員自己放好；只看名稱在不在）**：bot token 由學員直接放進 Cloudflare 後台 Worker `leo-bakery` 的 Secret，**不進這個工作區**，你拿不到、也不要去問學員 token；學員**不用**編密語、**不用**拼 setWebhook 網址（Worker 之後自己向 Telegram 登記）。跑 `npx wrangler secret list --name leo-bakery`（只列名稱，不會印值）：看到 `TELEGRAM_BOT_TOKEN` → 印「通過（名稱在；bot 要等下午門市客服蓋好、打開儀表板後才會回話）」。Worker 不存在或沒有這個名稱 → 印「還沒放好：照 README 的 G 步做」，**不擋**其他項目。學員說「幫我檢查 Telegram 接好了沒」或下午 bot 沒反應 → 用 `telegram-check` 技能（跑 `node .claude/scripts/check-telegram.mjs <Worker 網址>`，Worker 沒接好會自己接好，你只看得到結果）；最後以對 bot 傳 `/id` 有回數字為準。
 
 ## 選用：Network secrets（尚未驗證，不是課堂預設）
 

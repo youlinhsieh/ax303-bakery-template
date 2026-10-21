@@ -2,7 +2,7 @@
 
 > 本文件裡的路徑（`orders/`、`data/`、`tests/`、`scenario/`、`company-data/`、`wrangler.toml`）都在 repo 的 `course/` 底下；`course/` 就是烘焙坊的 Worker 專案根目錄。
 
-儀表板 `orders/index.html`（唯讀，只能看）、`tests/`、`scenario/`、Telegram 都只會打下面這些網址。**合約不能改**；後端做不到就回報，不要去改前端或測試。
+儀表板 `orders/index.html`（唯讀，只能看；含「Telegram bot 接通了嗎」一格）、`tests/`、`scenario/`、Telegram 都只會打下面這些網址。**合約不能改**；後端做不到就回報，不要去改前端或測試。
 
 ## 一、資料放哪、怎麼進來
 
@@ -34,7 +34,8 @@
 | 工作日誌 | `GET /api/logs`、`GET /api/logs?station=desk` | `{"logs":[{id,ts,day,station,actor,action,target,result(ok\|blocked\|pending),summary,data}]}` |
 | 老闆日報 | `GET /api/report/daily?date=2026-10-21`（不給＝今天） | `{"date","orders_new","amount",…,"text":"日報全文"}`；**只能從日誌與申請表算出來** |
 | 五個工位 | `POST /api/<工位>/chat`，body `{"message":"…","user":"阿德"}`（`user` 可省略） | `{"station","reply":"工位的回答"}`；可以多帶 `via`（`model`＝小模型接的話、`rules`／`rules-fallback`＝規則備援）和 `tool`（小模型挑了哪個工具），測試表只看 `reply` |
-| Telegram 入口 | `POST /api/telegram/webhook`（Telegram 呼叫，帶 `X-Telegram-Bot-Api-Secret-Token`） | `{"ok":true}`；密語不對回 403，沒設定回 503 |
+| Telegram 入口 | `POST /api/telegram/webhook`（Telegram 呼叫，帶 `X-Telegram-Bot-Api-Secret-Token`；密語由 `TELEGRAM_BOT_TOKEN` 算出，學員不用編） | `{"ok":true}`；密語不對回 403，沒設 `TELEGRAM_BOT_TOKEN` 回 503 |
+| Telegram 接通狀態（儀表板那一格） | `GET /api/telegram/status`（儀表板每次載入都打；**Worker 在這時發現 Telegram 還沒登記或登記錯網址，會自己 `setWebhook` 補登記**，見 `orders/SDD-stations.md`〈Worker 自己接上 Telegram〉） | `{"state","summary","secrets":{"TELEGRAM_BOT_TOKEN":bool},"missing":[…],"expected_webhook","registered_now":bool,"webhook":null或{url,pending,last_error_message,last_error_date}}`；`state` 是 `secret-missing`／`token-invalid`／`webhook-set-failed`／`delivery-error`／`ok`。**永遠 HTTP 200**（沒接通是狀態，不是錯誤）。**token 與密語的值絕不出現在回應或日誌**，只回有沒有放 |
 | 重置資料（教學用） | `POST /api/reset` | `{"ok":true}`：訂單、客戶、設備、排班換回 CSV 起始資料；需求、申請、打卡、日誌清空。測試前會自動呼叫；**只在課程沙盒的 Worker 做**，不要放進真的公司系統 |
 
 `<工位>` 是：`service`（門市客服）、`intake`（接單員）、`kitchen`（廚房排產）、`desk`（內勤小幫手）、`report`（老闆日報）。每個工位做什麼、能碰什麼，見 `orders/SDD-stations.md`。
